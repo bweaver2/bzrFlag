@@ -405,6 +405,7 @@ class BZRC:
         self.sendline('othertanks')
         self.sendline('flags')
         self.sendline('shots')
+        self.sendline('obstacles')
 
         self.read_ack()
         mytanks = self.read_mytanks()
@@ -414,8 +415,10 @@ class BZRC:
         flags = self.read_flags()
         self.read_ack()
         shots = self.read_shots()
+        self.read_ack()
+        obstacles = self.read_obstacles()
 
-        return (mytanks, othertanks, flags, shots)
+        return (mytanks, othertanks, flags, shots, obstacles)
 
     def do_commands(self, commands):
         """Send commands for a bunch of tanks in a network-optimized way."""

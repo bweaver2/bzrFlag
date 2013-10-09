@@ -26,8 +26,18 @@ import time
 
 from bzrc import BZRC, Command
 
-class Agent(object):
+class basicAgent(object):
     """Class handles all command and control logic for a teams tanks."""
+    ENEMY_TANK_MIN_DISTANCE = 1
+    ENEMY_TANK_MAX_DISTANCE = 5
+    OBSTACLE_MAX_DISTANCE = 10
+    OBSTACLE_MIN_DISTANCE = 1
+    BULLET_MAX_DISTANCE = 10
+    BULLET_MIN_DISTANCE = 1
+    FLAG_MIN_DISTANCE = 1
+    FLAG_MAX_DISTANCE = 5
+    FLAG_MAX_SPEED = 5
+
 
     def __init__(self, bzrc):
         self.bzrc = bzrc
@@ -36,18 +46,25 @@ class Agent(object):
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
-        mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
+        mytanks, othertanks, flags, shots, obstacles = self.bzrc.get_lots_o_stuff()
         self.mytanks = mytanks
         self.othertanks = othertanks
         self.flags = flags
         self.shots = shots
         self.enemies = [tank for tank in othertanks if tank.color !=
                         self.constants['team']]
+        self.friendlies = [tank for tank in othertanks if tank.color ==
+                        self.constants['team']]
+        self.obstacles = obstacles
 
         self.commands = []
 
+        "we need a new speed, a new angle, and whether or not to shoot"
         for tank in mytanks:
-            self.attack_enemies(tank)
+            speed, angle = self.get_desired_movement(tank, flags, shots, obstacles)
+            shoot = self.should_shoot(tank, flags, shots, obstacles)
+            command = Command(tank.index, speed, angle, shoot)
+            self.commands.append(command)
 
         results = self.bzrc.do_commands(self.commands)
 
@@ -85,6 +102,72 @@ class Agent(object):
             angle -= 2 * math.pi
         return angle
 
+    def get_desired_movement(self, tank, flags, shots, obstacles):
+        final_angle = 0
+        final_speed = 0
+        vectors = []
+        vectors.extend(self.get_repulsive_vectors(tank, shots))
+        vectors.extend(self.get_attractive_vectors(tank, flags))
+        vectors.extend(self.get_tangential_vectors(tank, obstacles))
+        for speed, angle in vectors:
+            final_speed += speed
+            final_angle += angle
+        return speed, angle
+
+    def get_repulsive_vectors(self, tank, shots):
+        speeds = []
+        angles = []
+        for enemy in self.enemies:
+            if enemy.status != 'alive':
+                continue
+            dist = math.sqrt((enemy.x - tank.x)**2 + (enemy.y - tank.y)**2)
+            if self.ENEMY_TANK_MIN_DISTANCE < dist < self.ENEMY_TANK_MAX_DISTANCE:
+                target_angle = math.atan2(enemy.y - tank.y, enemy.x - tank.x)
+                relative_angle = self.normalize_angle(target_angle - tank.angle)
+                repel_angle = self.normalize_angle(target_angle + 180)
+                tangent_angle = self.normalize_angle(target_angle + 90)
+                speeds.append(1/dist)
+                angles.append(repel_angle)
+                speeds.append(1/dist)
+                angles.append(tangent_angle)
+        #for shot in shots
+            #do stuff like check if the bullet is heading towards us, to dodge it
+        return zip(speeds, angles)
+
+
+
+    def get_attractive_vectors(self, tank, flags):
+        speeds = []
+        angles = []
+        for flag in flags:
+            if flag.color != self.constants['team']:
+                dist = math.sqrt((flag.x - tank.x)**2 + (flag.y - tank.y)**2)
+                target_angle = math.atan2(flag.y - tank.y, flag.x - tank.x)
+                if dist > self.FLAG_MAX_DISTANCE:
+                    speeds.append(self.FLAG_MAX_SPEED)
+                    angles.append(target_angle)
+                elif dist > self.FLAG_MIN_DISTANCE:
+                    speeds.append(dist)
+                    angles.append(target_angle)
+        return zip(speeds, angles)
+
+    def get_tangential_vectors(self, tank, obstacles):
+        speeds = []
+        angles = []
+        for obstacle in obstacles:
+            dist = math.sqrt((obstacle[0][0] - tank.x)**2 + (obstacle[0][1] - tank.y)**2)
+            if self.OBSTACLE_MIN_DISTANCE < dist < self.OBSTACLE_MAX_DISTANCE:
+                target_angle = math.atan2(obstacle[0][1] - tank.y, obstacle[0][0] - tank.x)
+                relative_angle = self.normalize_angle(target_angle - tank.angle)
+                tangent_angle = self.normalize_angle(target_angle + 90)
+                speeds.append(1/dist)
+                angles.append(tangent_angle)
+        return zip(speeds, angles)
+
+
+    def should_shoot(self, tank, flags, shots, obstacles):
+        return True
+
 
 def main():
     # Process CLI arguments.
@@ -100,7 +183,7 @@ def main():
     #bzrc = BZRC(host, int(port), debug=True)
     bzrc = BZRC(host, int(port))
 
-    agent = Agent(bzrc)
+    agent = basicAgent(bzrc)
 
     prev_time = time.time()
 

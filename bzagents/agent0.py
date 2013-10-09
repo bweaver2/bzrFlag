@@ -36,7 +36,7 @@ class Agent(object):
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
-        mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
+        mytanks, othertanks, flags, shots, obstacles = self.bzrc.get_lots_o_stuff()
         self.mytanks = mytanks
         self.othertanks = othertanks
         self.flags = flags
