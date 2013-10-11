@@ -23,7 +23,9 @@ import time
 
 class BZRC:
     """Class handles queries and responses with remote controled tanks."""
-
+    
+    PLOT_FILE = None
+    
     def __init__(self, host, port, debug=False):
         """Given a hostname and port number, connect to the RC tanks."""
         self.debug = debug
@@ -36,6 +38,33 @@ class BZRC:
         self.conn = sock.makefile(bufsize=1)
 
         self.handshake()
+        self.prepopulate_plot_file()
+
+    def get_plot_file(self):
+        return self.PLOT_FILE
+
+    def prepopulate_plot_file(self):
+        self.PLOT_FILE = open('fields.gpi', 'r+')
+        #clear out the file
+        self.PLOT_FILE.truncate()
+        constants = self.get_constants()
+        worldsize = int(constants['worldsize'])
+        obstacles = self.get_obstacles()
+        
+        self.PLOT_FILE.write('set xrange [-%s: %s]\n' % (worldsize/2, worldsize/2))
+        self.PLOT_FILE.write('set yrange [-%s: %s]\n' % (worldsize/2, worldsize/2))
+        self.PLOT_FILE.write('\n unset key \nset size square\n\n')
+        
+        self.PLOT_FILE.write("unset arrow\n")
+        for obstacle in obstacles:
+            lines =[([obstacle[0][0], obstacle[0][1], obstacle[1][0], obstacle[1][1] ] ), 
+                    ([obstacle[1][0], obstacle[1][1], obstacle[2][0], obstacle[2][1] ] ), 
+                    ([obstacle[2][0], obstacle[2][1], obstacle[3][0], obstacle[3][1] ] ), 
+                    ([obstacle[3][0], obstacle[3][1], obstacle[0][0], obstacle[0][1] ] )]
+            for line in lines:
+                self.PLOT_FILE.write("set arrow from %s, %s to %s, %s nohead lt 3\n" % (line[0],line[1],line[2],line[3]))
+        
+        self.PLOT_FILE.write("\n\nplot '-' with vectors head\n")
 
     def handshake(self):
         """Perform the handshake with the remote tanks."""

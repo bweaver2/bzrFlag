@@ -49,8 +49,8 @@ class basicAgent(object):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.commands = []
-        self.prepopulate_plot_file()
-        self.base = None        
+        self.PLOT_FILE = bzrc.get_plot_file()
+        self.base = None
         bases = self.bzrc.get_bases()
         for base in bases:
             if base.color == self.constants['team']:
@@ -63,28 +63,6 @@ class basicAgent(object):
             self.last_posx.append(tank.x-0)
             self.last_posy.append(tank.y-0)
             self.last_ang.append(tank.angle-0)
-
-    def prepopulate_plot_file(self):
-        self.PLOT_FILE = open('fields.gpi', 'r+')
-        #clear out the file
-        self.PLOT_FILE.truncate()
-        worldsize = int(self.constants['worldsize'])
-        obstacles = self.bzrc.get_obstacles()
-        
-        self.PLOT_FILE.write('set xrange [-%s: %s]\n' % (worldsize/2, worldsize/2))
-        self.PLOT_FILE.write('set yrange [-%s: %s]\n' % (worldsize/2, worldsize/2))
-        self.PLOT_FILE.write('\n unset key \nset size square\n\n')
-        
-        self.PLOT_FILE.write("unset arrow\n")
-        for obstacle in obstacles:
-            lines =[([obstacle[0][0], obstacle[0][1], obstacle[1][0], obstacle[1][1] ] ), 
-                    ([obstacle[1][0], obstacle[1][1], obstacle[2][0], obstacle[2][1] ] ), 
-                    ([obstacle[2][0], obstacle[2][1], obstacle[3][0], obstacle[3][1] ] ), 
-                    ([obstacle[3][0], obstacle[3][1], obstacle[0][0], obstacle[0][1] ] )]
-            for line in lines:
-                self.PLOT_FILE.write("set arrow from %s, %s to %s, %s nohead lt 3\n" % (line[0],line[1],line[2],line[3]))
-        
-        self.PLOT_FILE.write("\n\nplot '-' with vectors head")
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
@@ -105,7 +83,6 @@ class basicAgent(object):
 
         "we need a new speed, a new angle, and whether or not to shoot"
         for tank in curTanks:
-            print tank.vx, tank.vy
             speed, angle = self.get_desired_movement(tank, flags, shots, obstacles)
             shoot = self.should_shoot(tank, flags, shots, obstacles)
             if time_diff > 0:
