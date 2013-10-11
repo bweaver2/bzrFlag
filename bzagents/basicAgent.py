@@ -41,6 +41,10 @@ class basicAgent(object):
     PLOT_FILE = None
 
 
+    last_posx = []
+    last_posy = []
+    last_ang = []
+
     def __init__(self, bzrc):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
@@ -51,6 +55,14 @@ class basicAgent(object):
         for base in bases:
             if base.color == self.constants['team']:
                 self.base = base
+        mytanks, othertanks, flags, shots, obstacles = self.bzrc.get_lots_o_stuff()
+        self.last_posx = []
+        self.last_posy = []
+        self.last_ang = []
+        for tank in mytanks:
+            self.last_posx.append(tank.x-0)
+            self.last_posy.append(tank.y-0)
+            self.last_ang.append(tank.angle-0)
 
     def prepopulate_plot_file(self):
         self.PLOT_FILE = open('fields.gpi', 'r+')
@@ -96,15 +108,31 @@ class basicAgent(object):
             print tank.vx, tank.vy
             speed, angle = self.get_desired_movement(tank, flags, shots, obstacles)
             shoot = self.should_shoot(tank, flags, shots, obstacles)
+            if time_diff > 0:
+                velx = (tank.x-self.last_posx[tank.index])/time_diff
+                vely = (tank.y-self.last_posy[tank.index])/time_diff
+                veltheta = abs((tank.angle-self.last_ang[tank.index])/time_diff)
+            else:
+                velx = 0
+                vely = 0
+                veltheta = 0
             x = tank.x
             y = tank.y
             deltaX = float(speed * math.cos(angle))
             deltaY = float(speed * math.sin(angle))
             self.PLOT_FILE.write("%s %s %s %s\n" % (x, y, deltaX, deltaY))
+            
+            speed = speed - .001*((velx**2+vely**2)**.5)
+            speed = min(speed,1)
+            shoot = self.should_shoot(tank, flags, shots, obstacles)
             if angle > 0 :
-                command = Command(tank.index, speed, 1, shoot)
+                angle = angle - .000001*veltheta
+                angle = min(angle,1)
+                command = Command(tank.index, speed, angle, shoot)
             elif angle < 0:
-                command = Command(tank.index, speed, -1, shoot)
+                angle = angle+.000001*veltheta
+                angle = max(angle,-1)
+                command = Command(tank.index, speed, angle, shoot)
             else:
                 command = Command(tank.index, speed, 0, shoot)
             self.commands.append(command)
@@ -167,7 +195,7 @@ class basicAgent(object):
         bestDist = None
         for flag in flags:
             
-            if (tank.flag == "-" and flag.color != self.constants['team']):
+            if (tank.flag == "-" and flag.color != self.constants['team'] and flag.poss_color != self.constants['team']):
                 dist = math.sqrt((flag.x - tank.x)**2 + (flag.y - tank.y)**2)
                 if bestDist == None or dist < bestDist:
                     bestFlag = flag
@@ -214,7 +242,7 @@ class basicAgent(object):
                     target_angle = math.atan2(intersection[1] - tank.y, intersection[0] - tank.x)
                     tangent_angle = self.normalize_angle(target_angle + 90)
                     relative_angle = self.normalize_angle(tangent_angle - tank.angle)
-                    speeds.append(1/dist)
+                    speeds.append(-1/dist)
                     angles.append(tangent_angle)
         return zip(speeds, angles)
     
