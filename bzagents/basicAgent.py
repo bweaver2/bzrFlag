@@ -63,7 +63,12 @@ class basicAgent(object):
         for tank in mytanks:
             speed, angle = self.get_desired_movement(tank, flags, shots, obstacles)
             shoot = self.should_shoot(tank, flags, shots, obstacles)
-            command = Command(tank.index, speed, angle, shoot)
+            if angle > 0 :
+				command = Command(tank.index, speed, 1, shoot)
+            elif angle < 0:
+				command = Command(tank.index, speed, -1, shoot)
+            else:
+				command = Command(tank.index, speed, 0, shoot)
             self.commands.append(command)
 
         results = self.bzrc.do_commands(self.commands)
@@ -112,7 +117,7 @@ class basicAgent(object):
         for speed, angle in vectors:
             final_speed += speed
             final_angle += angle
-        return speed, angle
+        return final_speed, final_angle
 
     def get_repulsive_vectors(self, tank, shots):
         speeds = []
@@ -134,21 +139,26 @@ class basicAgent(object):
             #do stuff like check if the bullet is heading towards us, to dodge it
         return zip(speeds, angles)
 
-
+    def hasFlag(self,tank,flags):
+        for flag in flags:
+            if tank.flag == flag:
+                return True;
+        return False;
 
     def get_attractive_vectors(self, tank, flags):
         speeds = []
         angles = []
         for flag in flags:
-            if flag.color != self.constants['team']:
+            if (self.hasFlag(tank,flags) == 0 and flag.color != self.constants['team']):
                 dist = math.sqrt((flag.x - tank.x)**2 + (flag.y - tank.y)**2)
                 target_angle = math.atan2(flag.y - tank.y, flag.x - tank.x)
+                relative_angle = self.normalize_angle(target_angle - tank.angle)
                 if dist > self.FLAG_MAX_DISTANCE:
                     speeds.append(self.FLAG_MAX_SPEED)
-                    angles.append(target_angle)
+                    angles.append(relative_angle)
                 elif dist > self.FLAG_MIN_DISTANCE:
                     speeds.append(dist)
-                    angles.append(target_angle)
+                    angles.append(relative_angle)
         return zip(speeds, angles)
 
     def get_tangential_vectors(self, tank, obstacles):
@@ -158,8 +168,8 @@ class basicAgent(object):
             dist = math.sqrt((obstacle[0][0] - tank.x)**2 + (obstacle[0][1] - tank.y)**2)
             if self.OBSTACLE_MIN_DISTANCE < dist < self.OBSTACLE_MAX_DISTANCE:
                 target_angle = math.atan2(obstacle[0][1] - tank.y, obstacle[0][0] - tank.x)
-                relative_angle = self.normalize_angle(target_angle - tank.angle)
                 tangent_angle = self.normalize_angle(target_angle + 90)
+                relative_angle = self.normalize_angle(tangent_angle - tank.angle)
                 speeds.append(1/dist)
                 angles.append(tangent_angle)
         return zip(speeds, angles)
