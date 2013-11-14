@@ -47,7 +47,7 @@ class dumb_agent(object):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         random.seed();
-        mytanks, othertanks, flags, shots, obstacles = self.bzrc.get_lots_o_stuff()
+        mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
         self.new_angles = []
         self.running_time = []
         for tank in mytanks:
@@ -58,7 +58,8 @@ class dumb_agent(object):
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
-        mytanks, othertanks, flags, shots, obstacles = self.bzrc.get_lots_o_stuff()
+        mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
+        obstacles = self.bzrc.get_obstacles()
         self.mytanks = mytanks
         self.othertanks = othertanks
         self.flags = flags

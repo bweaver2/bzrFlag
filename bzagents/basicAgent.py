@@ -44,6 +44,7 @@ class basicAgent(object):
     last_posx = []
     last_posy = []
     last_ang = []
+    time_to_print = 0
 
     def __init__(self, bzrc):
         self.bzrc = bzrc
@@ -51,11 +52,13 @@ class basicAgent(object):
         self.commands = []
         self.PLOT_FILE = bzrc.get_plot_file()
         self.base = None
+        self.time_to_print = 20
         bases = self.bzrc.get_bases()
         for base in bases:
             if base.color == self.constants['team']:
                 self.base = base
-        mytanks, othertanks, flags, shots, obstacles = self.bzrc.get_lots_o_stuff()
+        mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
+        obstacles = self.bzrc.get_obstacles()
         self.last_posx = []
         self.last_posy = []
         self.last_ang = []
@@ -66,7 +69,8 @@ class basicAgent(object):
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
-        mytanks, othertanks, flags, shots, obstacles = self.bzrc.get_lots_o_stuff()
+        mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
+        obstacles = self.bzrc.get_obstacles()
         self.mytanks = mytanks
         self.othertanks = othertanks
         self.flags = flags
@@ -80,9 +84,15 @@ class basicAgent(object):
         self.commands = []
         curTanks = []
         curTanks.extend(mytanks)
+        if self.time_to_print < 0 :
+			self.time_to_print = 20
+        self.time_to_print = self.time_to_print - time_diff
 
         "we need a new speed, a new angle, and whether or not to shoot"
         for tank in curTanks:
+            if tank.index == 0:
+                tank.x = 50
+                tank.y = 50
             speed, angle = self.get_desired_movement(tank, flags, shots, obstacles)
             shoot = self.should_shoot(tank, flags, shots, obstacles)
             if time_diff > 0:
@@ -97,7 +107,9 @@ class basicAgent(object):
             y = tank.y
             deltaX = float(speed * math.cos(angle))
             deltaY = float(speed * math.sin(angle))
-            self.PLOT_FILE.write("%s %s %s %s\n" % (x, y, deltaX, deltaY))
+            if self.time_to_print < 0:
+				self.PLOT_FILE.write("%s %s %s %s\n" % (x, y, deltaX, deltaY))
+            
             
             speed = speed - .001*((velx**2+vely**2)**.5)
             speed = min(speed,1)
@@ -215,14 +227,44 @@ class basicAgent(object):
             if intersection != None:
                 #we are only applying tangential forces
                 dist = math.sqrt((intersection[0] - tank.x)**2 + (intersection[1] - tank.y)**2)
-                if self.OBSTACLE_MIN_DISTANCE < dist < self.OBSTACLE_MAX_DISTANCE:
+                if dist < self.OBSTACLE_MAX_DISTANCE:
                     target_angle = math.atan2(intersection[1] - tank.y, intersection[0] - tank.x)
-                    tangent_angle = self.normalize_angle(target_angle + 90)
+                    tangent_angle = self.normalize_angle(target_angle + math.pi/2)
                     relative_angle = self.normalize_angle(tangent_angle - tank.angle)
                     speeds.append(-1/dist)
                     angles.append(tangent_angle)
         return zip(speeds, angles)
-    
+        
+    """def getSecondaryTangentialVectors(self,tank,obstacles):
+        x = tank.x
+        y = tank.y
+        for(obstacle in obstacles:
+            x1 = obstacle[0][0]
+            x2 = obstacle[0][1]
+            x3 = obstacle[0][2]
+            x4 = obstacle[0][3]
+            y1 = obstacle[0][0]
+            y2 = obstacle[0][1]
+            y3 = obstacle[0][2]
+            y4 = obstacle[0][3]
+            center_y = (y0+y1+y2+y3)/4
+            center_x = (x0+x1+x2+x3)/4
+            dist_x = 0
+            dist_y = 0
+            target_angle = 0
+            if x > center_x:
+                dist_x = x-center_x
+            else:
+                dist_x = center_x - x
+            if y > center_y:
+                dist_y = y - center_y
+            else:
+                dist_y = center_y - y
+            
+            dist = (dist_x**2+dist_y**2)**.5
+            target_angle = math.atan2(center_y-y,center_x-x)"""
+            
+        
     #returns a pair of points defining a line
     def will_hit_obstacle(self, tank, obstacle):
         #first we need to make the lines to check for collissions.
