@@ -23,9 +23,49 @@
 import sys
 import math
 import time
+import numpy
 from numpy import *
 
 from bzrc import BZRC, Command
+
+import OpenGL
+OpenGL.ERROR_CHECKING = False
+from OpenGL.GL import *
+from OpenGL.GLUT import *
+from OpenGL.GLU import *
+from numpy import zeros
+
+grid = None
+
+def draw_grid():
+    # This assumes you are using a numpy array for your grid
+    width, height = grid.shape
+    glRasterPos2f(-1, -1)
+    glDrawPixels(width, height, GL_LUMINANCE, GL_FLOAT, grid)
+    glFlush()
+    glutSwapBuffers()
+
+def update_grid(new_grid):
+    global grid
+    grid = new_grid
+
+
+
+def init_window(width, height):
+    global window
+    global grid
+    grid = zeros((width, height))
+    glutInit(())
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA | GLUT_DEPTH)
+    glutInitWindowSize(width, height)
+    glutInitWindowPosition(0, 0)
+    window = glutCreateWindow("Grid filter")
+    glutDisplayFunc(draw_grid)
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    glMatrixMode(GL_MODELVIEW)
+    glLoadIdentity()
+    #glutMainLoop()
 
 class basicAgent(object):
     """Class handles all command and control logic for a teams tanks."""
@@ -39,6 +79,14 @@ class basicAgent(object):
     FLAG_MAX_DISTANCE = 5
     FLAG_MAX_SPEED = 5
     PLOT_FILE = None
+    hasPrintedGrid = False
+
+    #Static Variables to store current perception of the map
+    #map[0][0] = bottom left corner
+    #map[800][0] = bottom righ corner
+    #map[800][800] = top right corner
+    baseBelief = 0.5
+    beliefMap = [[baseBelief for x in xrange(800)] for x in xrange(800)]
 
 
     last_posx = []
@@ -67,6 +115,38 @@ class basicAgent(object):
             self.last_posy.append(tank.y-0)
             self.last_ang.append(tank.angle-0)
 
+    def updateBelief(self, tank):
+        pos, grid = self.bzrc.get_occgrid(tank.index)
+        if not self.hasPrintedGrid:
+            print grid
+            self.hasPrintedGrid = True
+
+        #map coordinates are centered at 0,0; top left corner is -400, 400, top right is 400, 400, etc
+        #always use given position, never the tanks position
+        #position gives bottom left corner of array
+
+        for relativeX in xrange(100):
+            for relativeY in xrange(100):
+                SensorX = relativeX + pos[0] + 400
+                SensorY = relativeY + pos[1] + 400
+                if SensorX < 0 or SensorY < 0 or SensorX >= 800 or SensorY >= 800:
+                    continue
+                occupied = grid[relativeX][relativeY]
+                self.beliefMap[SensorX][SensorY] = occupied
+                """if (Observation(i,j) == 1)  % If we observe a hit
+                    Bel_Occ = TrueHit * p(SensorX,SensorY);  % Recall that p(SensorX,SensorY) is the probability that a cell is occupied
+                    Bel_Unocc = FalseAlarm * (1-p(SensorX,SensorY));  % So 1-p(SensorX,SensorY) is the probability that a cell is unoccupied
+                    % Normalize
+                    p(SensorX,SensorY) = Bel_Occ / (Bel_Occ + Bel_Unocc);
+                else  % If do not observe a hit 
+                    Bel_Occ = (1-TrueHit) * p(SensorX,SensorY);  % Recall that p(SensorX,SensorY) is the probability that a cell is occupied
+                                         % Recall that (1-TrueHit) is the MissedDetection likelihood
+                    Bel_Unocc = (1-FalseAlarm) * (1-p(SensorX,SensorY));  % Recall 1-p(SensorX,SensorY) is the probability that a cell is unoccupied
+                                         % Recall that (1-FalseAlarm) is the TrueMiss likelihood
+                    % Normalize
+                    p(SensorX,SensorY) = Bel_Occ / (Bel_Occ + Bel_Unocc);
+                """
+
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
         mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
@@ -90,9 +170,7 @@ class basicAgent(object):
 
         "we need a new speed, a new angle, and whether or not to shoot"
         for tank in curTanks:
-            if tank.index == 0:
-                tank.x = 50
-                tank.y = 50
+            self.updateBelief(tank)
             speed, angle = self.get_desired_movement(tank, flags, shots, obstacles)
             shoot = self.should_shoot(tank, flags, shots, obstacles)
             if time_diff > 0:
@@ -152,21 +230,20 @@ class basicAgent(object):
     def get_repulsive_vectors(self, tank, shots):
         speeds = []
         angles = []
-        """for enemy in self.enemies:
-            if enemy.status != 'alive':
-                continue
-            dist = math.sqrt((enemy.x - tank.x)**2 + (enemy.y - tank.y)**2)
-            if self.ENEMY_TANK_MIN_DISTANCE < dist < self.ENEMY_TANK_MAX_DISTANCE:
-                target_angle = math.atan2(enemy.y - tank.y, enemy.x - tank.x)
-                relative_angle = self.normalize_angle(target_angle - tank.angle)
-                repel_angle = self.normalize_angle(relative_angle + 180)
-                tangent_angle = self.normalize_angle(relative_angle + 90)
-                speeds.append(1/dist)
-                angles.append(repel_angle)
-                speeds.append(1/dist)
-                angles.append(tangent_angle)"""
-        #for shot in shots
-            #do stuff like check if the bullet is heading towards us, to dodge it
+        
+        #obstacles like walls are interesting, we can't define them as points so we need to be a little more specific
+        #each obstacle is a set of 4 points defining a rectangle
+        for obstacle in obstacles:
+            intersection = self.will_hit_obstacle(tank, obstacle)
+            if intersection != None:
+                #we are only applying tangential forces
+                dist = math.sqrt((intersection[0] - tank.x)**2 + (intersection[1] - tank.y)**2)
+                if self.OBSTACLE_MIN_DISTANCE < dist < self.OBSTACLE_MAX_DISTANCE:
+                    target_angle = math.atan2(intersection[1] - tank.y, intersection[0] - tank.x)
+                    tangent_angle = self.normalize_angle(target_angle + 180)
+                    relative_angle = self.normalize_angle(tangent_angle - tank.angle)
+                    speeds.append(-1/dist)
+                    angles.append(tangent_angle)
         return zip(speeds, angles)
 
     def hasFlag(self,tank,flags):
@@ -348,11 +425,14 @@ def main():
 
     prev_time = time.time()
 
+    init_window(800,800)
     # Run the agent
     try:
         while True:
             time_diff = time.time() - prev_time
             agent.tick(time_diff)
+            draw_grid()
+            update_grid(numpy.array(agent.beliefMap))
     except KeyboardInterrupt:
         print "Exiting due to keyboard interrupt."
         bzrc.close()
