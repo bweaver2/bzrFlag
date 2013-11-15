@@ -79,7 +79,10 @@ class basicAgent(object):
     FLAG_MAX_DISTANCE = 5
     FLAG_MAX_SPEED = 5
     PLOT_FILE = None
-    hasPrintedGrid = False
+
+    #Static variables for updating belief grid
+    TRUE_HIT = 0.97
+    TRUE_MISS = 0.9
 
     #Static Variables to store current perception of the map
     #map[0][0] = bottom left corner
@@ -117,9 +120,6 @@ class basicAgent(object):
 
     def updateBelief(self, tank):
         pos, grid = self.bzrc.get_occgrid(tank.index)
-        if not self.hasPrintedGrid:
-            print grid
-            self.hasPrintedGrid = True
 
         #map coordinates are centered at 0,0; top left corner is -400, 400, top right is 400, 400, etc
         #always use given position, never the tanks position
@@ -132,20 +132,21 @@ class basicAgent(object):
                 if SensorX < 0 or SensorY < 0 or SensorX >= 800 or SensorY >= 800:
                     continue
                 occupied = grid[relativeX][relativeY]
-                self.beliefMap[SensorX][SensorY] = occupied
-                """if (Observation(i,j) == 1)  % If we observe a hit
-                    Bel_Occ = TrueHit * p(SensorX,SensorY);  % Recall that p(SensorX,SensorY) is the probability that a cell is occupied
-                    Bel_Unocc = FalseAlarm * (1-p(SensorX,SensorY));  % So 1-p(SensorX,SensorY) is the probability that a cell is unoccupied
-                    % Normalize
-                    p(SensorX,SensorY) = Bel_Occ / (Bel_Occ + Bel_Unocc);
-                else  % If do not observe a hit 
-                    Bel_Occ = (1-TrueHit) * p(SensorX,SensorY);  % Recall that p(SensorX,SensorY) is the probability that a cell is occupied
-                                         % Recall that (1-TrueHit) is the MissedDetection likelihood
-                    Bel_Unocc = (1-FalseAlarm) * (1-p(SensorX,SensorY));  % Recall 1-p(SensorX,SensorY) is the probability that a cell is unoccupied
-                                         % Recall that (1-FalseAlarm) is the TrueMiss likelihood
-                    % Normalize
-                    p(SensorX,SensorY) = Bel_Occ / (Bel_Occ + Bel_Unocc);
-                """
+                prior = self.beliefMap[SensorX][SensorY]
+                if occupied == 1:
+                    # Recall that p(SensorX,SensorY) is the probability that a cell is occupied
+                    Bel_Occ = self.TRUE_HIT * prior;
+                    # So 1-p(SensorX,SensorY) is the probability that a cell is unoccupied
+                    Bel_Unocc = (1 - self.TRUE_MISS) * (1 - prior);
+                    #now we normailze
+                    self.beliefMap[SensorX][SensorY] = Bel_Occ / (Bel_Occ + Bel_Unocc);
+                else:
+                    # Recall that p(SensorX,SensorY) is the probability that a cell is occupied
+                    Bel_Occ = (1 - self.TRUE_HIT) * prior;
+                    # So 1-p(SensorX,SensorY) is the probability that a cell is unoccupied
+                    Bel_Unocc = self.TRUE_MISS * (1 - prior);
+                    #now we normailze
+                    self.beliefMap[SensorX][SensorY] = Bel_Occ / (Bel_Occ + Bel_Unocc);
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
@@ -432,7 +433,7 @@ def main():
             time_diff = time.time() - prev_time
             agent.tick(time_diff)
             draw_grid()
-            update_grid(numpy.array(agent.beliefMap))
+            update_grid(numpy.array(zip(*agent.beliefMap)))
     except KeyboardInterrupt:
         print "Exiting due to keyboard interrupt."
         bzrc.close()
