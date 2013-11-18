@@ -79,6 +79,9 @@ class basicAgent(object):
     FLAG_MAX_DISTANCE = 5
     FLAG_MAX_SPEED = 5
     PLOT_FILE = None
+    WAYPOINTS_ARRAY = []
+    CUR_WAYPOINT = 0
+    last_pos = []
 
     #Static variables for updating belief grid
     TRUE_HIT = 0.97
@@ -112,11 +115,14 @@ class basicAgent(object):
         obstacles = self.bzrc.get_obstacles()
         self.last_posx = []
         self.last_posy = []
+        self.last_pos = []
+        self.WAYPOINTS_ARRAY = [[-350,350]]#,[-350,-350],[350,-350],[350,350]]
         self.last_ang = []
         for tank in mytanks:
             self.last_posx.append(tank.x-0)
             self.last_posy.append(tank.y-0)
             self.last_ang.append(tank.angle-0)
+            self.last_pos.append([tanx.x,tank.y])
 
     def updateBelief(self, tank):
         pos, grid = self.bzrc.get_occgrid(tank.index)
@@ -124,9 +130,10 @@ class basicAgent(object):
         #map coordinates are centered at 0,0; top left corner is -400, 400, top right is 400, 400, etc
         #always use given position, never the tanks position
         #position gives bottom left corner of array
-
-        for relativeX in xrange(100):
-            for relativeY in xrange(100):
+        #buf = "grid x dim %d, grid y dim %d\n" % (len(grid),len(grid[0]))
+        #print buf
+        for relativeX in xrange(len(grid)):
+            for relativeY in xrange(len(grid[0])):
                 SensorX = relativeX + pos[0] + 400
                 SensorY = relativeY + pos[1] + 400
                 if SensorX < 0 or SensorY < 0 or SensorX >= 800 or SensorY >= 800:
@@ -163,8 +170,8 @@ class basicAgent(object):
         self.obstacles = obstacles
 
         self.commands = []
-        curTanks = []
-        curTanks.extend(mytanks)
+        curTanks = [mytanks[0]]
+        #curTanks.extend(mytanks)
         if self.time_to_print < 0 :
 			self.time_to_print = 20
         self.time_to_print = self.time_to_print - time_diff
@@ -172,38 +179,41 @@ class basicAgent(object):
         "we need a new speed, a new angle, and whether or not to shoot"
         for tank in curTanks:
             self.updateBelief(tank)
-            speed, angle = self.get_desired_movement(tank, flags, shots, obstacles)
-            shoot = self.should_shoot(tank, flags, shots, obstacles)
-            if time_diff > 0:
-                velx = (tank.x-self.last_posx[tank.index])/time_diff
-                vely = (tank.y-self.last_posy[tank.index])/time_diff
-                veltheta = abs((tank.angle-self.last_ang[tank.index])/time_diff)
-            else:
-                velx = 0
-                vely = 0
-                veltheta = 0
             x = tank.x
             y = tank.y
-            deltaX = float(speed * math.cos(angle))
-            deltaY = float(speed * math.sin(angle))
-            if self.time_to_print < 0:
-				self.PLOT_FILE.write("%s %s %s %s\n" % (x, y, deltaX, deltaY))
+            if self.CUR_WAYPOINT < len(self.WAYPOINTS_ARRAY):
+                speed, angle = self.get_desired_movement(tank, flags, shots, obstacles)
+                shoot = self.should_shoot(tank, flags, shots, obstacles)
+                if time_diff > 0:
+                    velx = (tank.x-self.last_posx[tank.index])/time_diff
+                    vely = (tank.y-self.last_posy[tank.index])/time_diff
+                    veltheta = abs((tank.angle-self.last_ang[tank.index])/time_diff)
+                else:
+                    velx = 0
+                    vely = 0
+                    veltheta = 0
+                deltaX = float(speed * math.cos(angle))
+                deltaY = float(speed * math.sin(angle))
+                if self.time_to_print < 0:
+                    self.PLOT_FILE.write("%s %s %s %s\n" % (x, y, deltaX, deltaY))
             
-            
-            speed = speed - .001*((velx**2+vely**2)**.5)
-            speed = min(speed,1)
-            shoot = self.should_shoot(tank, flags, shots, obstacles)
-            if angle > 0 :
-                angle = angle - .000001*veltheta
-                angle = min(angle,1)
-                command = Command(tank.index, speed, angle, shoot)
-            elif angle < 0:
-                angle = angle+.000001*veltheta
-                angle = max(angle,-1)
-                command = Command(tank.index, speed, angle, shoot)
-            else:
-                command = Command(tank.index, speed, 0, shoot)
-            self.commands.append(command)
+                speed = speed - .001*((velx**2+vely**2)**.5)
+                speed = min(speed,1)
+                shoot = self.should_shoot(tank, flags, shots, obstacles)
+                if angle > 0 :
+                    angle = angle - .000001*veltheta
+                    angle = min(angle,1)
+                    command = Command(tank.index, speed, angle, shoot)
+                elif angle < 0:
+                    angle = angle+.000001*veltheta
+                    angle = max(angle,-1)
+                    command = Command(tank.index, speed, angle, shoot)
+                else:
+                    command = Command(tank.index, speed, 0, shoot)
+                self.commands.append(command)
+                if x > self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][0]-5 and x < self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][0]+5:
+                    if y > self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][1]-5 and y < self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][1]+5:
+                        self.CUR_WAYPOINT = self.CUR_WAYPOINT + 1
 
         results = self.bzrc.do_commands(self.commands)
 
@@ -232,9 +242,10 @@ class basicAgent(object):
         speeds = []
         angles = []
         
+        #lab 1
         #obstacles like walls are interesting, we can't define them as points so we need to be a little more specific
         #each obstacle is a set of 4 points defining a rectangle
-        for obstacle in obstacles:
+        """for obstacle in obstacles:
             intersection = self.will_hit_obstacle(tank, obstacle)
             if intersection != None:
                 #we are only applying tangential forces
@@ -245,6 +256,8 @@ class basicAgent(object):
                     relative_angle = self.normalize_angle(tangent_angle - tank.angle)
                     speeds.append(-1/dist)
                     angles.append(tangent_angle)
+        """
+        #lab2
         return zip(speeds, angles)
 
     def hasFlag(self,tank,flags):
@@ -260,7 +273,9 @@ class basicAgent(object):
         angle = 0
         bestFlag = None
         bestDist = None
-        for flag in flags:
+        
+        #lab 1
+        """for flag in flags:
             
             if (tank.flag == "-" and flag.color != self.constants['team'] and flag.poss_color != self.constants['team']):
                 dist = math.sqrt((flag.x - tank.x)**2 + (flag.y - tank.y)**2)
@@ -289,7 +304,16 @@ class basicAgent(object):
                 
                 speeds.extend([5,5,5,5])
                 angles.extend([relative_angle1,relative_angle2,relative_angle3,relative_angle4])
-                    
+        """
+        #lab 2
+        dist = math.sqrt((self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][0] - tank.x)**2 + (self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][1] - tank.y)**2)
+        target_angle = math.atan2(self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][1] - tank.y, self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][0] - tank.x)
+        relative_angle = self.normalize_angle(target_angle - tank.angle)
+        if dist > self.FLAG_MAX_DISTANCE:
+            speed = self.FLAG_MAX_SPEED
+        elif dist > self.FLAG_MIN_DISTANCE:
+            speed = dist
+        angle = relative_angle
         speeds.append(speed)
         angles.append(angle)
         return zip(speeds, angles)
@@ -297,7 +321,8 @@ class basicAgent(object):
     def get_tangential_vectors(self, tank, obstacles):
         speeds = []
         angles = []
-        
+        #lab1
+        """
         #obstacles like walls are interesting, we can't define them as points so we need to be a little more specific
         #each obstacle is a set of 4 points defining a rectangle
         for obstacle in obstacles:
@@ -311,6 +336,28 @@ class basicAgent(object):
                     relative_angle = self.normalize_angle(tangent_angle - tank.angle)
                     speeds.append(-1/dist)
                     angles.append(tangent_angle)
+        """
+        #lab2
+        
+        if tank.vx == 0 and tank.vy == 0:
+            pass
+            #get the angle to determine where the block is
+            #find the nearest point where the wall ends and set that as a new waypoint
+            x = tank.x + 50*math.cos(tank.angle + math.pi/2)
+            y = tank.y + 50*math.sin(tank.angle + math.pi/2)
+            if x > -400 and x < 400 and y > -400 and y < 400:
+                self.WAYPOINTS_ARRAY.insert(self.CUR_WAYPOINT,[x,y])
+            """
+            if grid[tank.x+1][tank.y] > .7:
+                #get around wall to the right of the tank
+            elif grid[tank.x-1][tank.y] > .7:
+                #get around wall to the left of the tank
+            elif grid[tank.x][tank.y+1] > .7:
+                #get around wall above the tank
+            elif grid[tank.x][tank.y-1] > .7:
+                #get around wall below the tank
+            """
+                
         return zip(speeds, angles)
         
     """def getSecondaryTangentialVectors(self,tank,obstacles):
