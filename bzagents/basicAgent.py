@@ -80,7 +80,7 @@ class basicAgent(object):
     FLAG_MAX_SPEED = 5
     PLOT_FILE = None
     WAYPOINTS_ARRAY = []
-    CUR_WAYPOINT = 0
+    CUR_WAYPOINT = [0,0,0,0]
     last_pos = []
 
     #Static variables for updating belief grid
@@ -116,13 +116,18 @@ class basicAgent(object):
         self.last_posx = []
         self.last_posy = []
         self.last_pos = []
-        self.WAYPOINTS_ARRAY = [[-350,350]]#,[-350,-350],[350,-350],[350,350]]
+        self.WAYPOINTS_ARRAY = [
+            [[-350,350], [350,350], [350,250], [-350,250]],  #Tank 1
+            [[-350,150], [350,150], [350,50],  [-350,50]],   #Tank 2
+            [[-350,-50], [350,-50], [350,-150],[-350,-150]], #Tank 3
+            [[-350,-250],[350,-250],[350,-350],[-350,-350]]  #Tank 4
+            ]
         self.last_ang = []
         for tank in mytanks:
             self.last_posx.append(tank.x-0)
             self.last_posy.append(tank.y-0)
             self.last_ang.append(tank.angle-0)
-            self.last_pos.append([tanx.x,tank.y])
+            self.last_pos.append([tank.x,tank.y])
 
     def updateBelief(self, tank):
         pos, grid = self.bzrc.get_occgrid(tank.index)
@@ -171,7 +176,7 @@ class basicAgent(object):
 
         self.commands = []
         curTanks = [mytanks[0]]
-        #curTanks.extend(mytanks)
+        curTanks.extend(mytanks[:4])
         if self.time_to_print < 0 :
 			self.time_to_print = 20
         self.time_to_print = self.time_to_print - time_diff
@@ -181,7 +186,9 @@ class basicAgent(object):
             self.updateBelief(tank)
             x = tank.x
             y = tank.y
-            if self.CUR_WAYPOINT < len(self.WAYPOINTS_ARRAY):
+            tankWayPointIndex = self.CUR_WAYPOINT[tank.index]
+            tankWayPoints = self.WAYPOINTS_ARRAY[tank.index]
+            if tankWayPointIndex < len(tankWayPoints):
                 speed, angle = self.get_desired_movement(tank, flags, shots, obstacles)
                 shoot = self.should_shoot(tank, flags, shots, obstacles)
                 if time_diff > 0:
@@ -211,10 +218,29 @@ class basicAgent(object):
                 else:
                     command = Command(tank.index, speed, 0, shoot)
                 self.commands.append(command)
-                if x > self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][0]-5 and x < self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][0]+5:
-                    if y > self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][1]-5 and y < self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][1]+5:
-                        self.CUR_WAYPOINT = self.CUR_WAYPOINT + 1
-
+                
+                rangeCheck = 10
+                """
+                print tank.x-self.last_posx[tank.index], tank.y-self.last_posy[tank.index], time_diff
+                if ((tank.x-self.last_posx[tank.index]) == 0.0) and ((tank.y-self.last_posy[tank.index]) == 0.0) and time_diff > .1:
+                    newPoint = [0,0]
+                    tankx = int(math.floor(tank.x))
+                    tanky = int(math.floor(tank.y))
+                    while newPoint[0] < 10 and newPoint[1] < 10 and self.beliefMap[newPoint[0]+tankx][newPoint[1]+tanky] !=0:
+                        newPoint[0] = random.randint(-50, 50)
+                        newPoint[1] = random.randint(-50, 50)
+                        #if self.beliefMap[]
+                    newPoint[0] = newPoint[0] + tankx
+                    newPoint[1] = newPoint[1] + tanky
+                    print 'random', newPoint
+                    tankWayPoints.insert(tankWayPointIndex, newPoint)
+                """
+                if x > tankWayPoints[tankWayPointIndex][0]-rangeCheck and x < tankWayPoints[tankWayPointIndex][0]+rangeCheck:
+                    if y > tankWayPoints[tankWayPointIndex][1]-rangeCheck and y < tankWayPoints[tankWayPointIndex][1]+rangeCheck:
+                        self.CUR_WAYPOINT[tank.index] = tankWayPointIndex + 1
+            
+            self.last_posx[tank.index] = tank.x
+            self.last_posy[tank.index] = tank.y
         results = self.bzrc.do_commands(self.commands)
 
     def normalize_angle(self, angle):
@@ -306,8 +332,13 @@ class basicAgent(object):
                 angles.extend([relative_angle1,relative_angle2,relative_angle3,relative_angle4])
         """
         #lab 2
-        dist = math.sqrt((self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][0] - tank.x)**2 + (self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][1] - tank.y)**2)
-        target_angle = math.atan2(self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][1] - tank.y, self.WAYPOINTS_ARRAY[self.CUR_WAYPOINT][0] - tank.x)
+
+        tankWayPointIndex = self.CUR_WAYPOINT[tank.index]
+        tankWayPoints = self.WAYPOINTS_ARRAY[tank.index]
+
+
+        dist = math.sqrt((tankWayPoints[tankWayPointIndex][0] - tank.x)**2 + (tankWayPoints[tankWayPointIndex][1] - tank.y)**2)
+        target_angle = math.atan2(tankWayPoints[tankWayPointIndex][1] - tank.y, tankWayPoints[tankWayPointIndex][0] - tank.x)
         relative_angle = self.normalize_angle(target_angle - tank.angle)
         if dist > self.FLAG_MAX_DISTANCE:
             speed = self.FLAG_MAX_SPEED
@@ -338,25 +369,59 @@ class basicAgent(object):
                     angles.append(tangent_angle)
         """
         #lab2
-        
-        if tank.vx == 0 and tank.vy == 0:
-            pass
-            #get the angle to determine where the block is
-            #find the nearest point where the wall ends and set that as a new waypoint
-            x = tank.x + 50*math.cos(tank.angle + math.pi/2)
-            y = tank.y + 50*math.sin(tank.angle + math.pi/2)
-            if x > -400 and x < 400 and y > -400 and y < 400:
-                self.WAYPOINTS_ARRAY.insert(self.CUR_WAYPOINT,[x,y])
-            """
-            if grid[tank.x+1][tank.y] > .7:
-                #get around wall to the right of the tank
-            elif grid[tank.x-1][tank.y] > .7:
-                #get around wall to the left of the tank
-            elif grid[tank.x][tank.y+1] > .7:
-                #get around wall above the tank
-            elif grid[tank.x][tank.y-1] > .7:
-                #get around wall below the tank
-            """
+        obstacleInfluenceRange = 5
+        tankWayPointIndex = self.CUR_WAYPOINT[tank.index]
+        tankWayPoints = self.WAYPOINTS_ARRAY[tank.index]
+
+        deltax = tankWayPoints[tankWayPointIndex][0] - tank.x
+        deltay = tankWayPoints[tankWayPointIndex][1] - tank.y
+
+        radius = 3
+        for i in xrange(0, radius * 2):
+            for j in xrange(0, radius * 2):
+                xIndex = int(tank.x + i - radius + 400)
+                yIndex = int(tank.y + i - radius + 400)
+                print xIndex, yIndex, self.beliefMap[xIndex][yIndex]
+                if 400 > xIndex and xIndex > -400 and 400 > yIndex and yIndex > -400 and self.beliefMap[xIndex][yIndex] > .6:
+                    
+                    print 'Tangential'
+                    dist = math.sqrt((xIndex - tank.x)**2 + (yIndex - tank.y)**2)
+                    if dist == 0:
+                        dist = 0.001
+                    target_angle = math.atan2(yIndex - tank.y, xIndex - tank.x)
+                    tangent_angle = self.normalize_angle(target_angle + math.pi/2)
+                    relative_angle = self.normalize_angle(tangent_angle - tank.angle)
+                    speeds.append(-1/dist)
+                    angles.append(tangent_angle)
+
+        """
+        if deltax != 0 and deltay != 0:
+            for i in xrange(5):
+                xIndex = int(tank.x+math.floor(i*(deltax / (abs(deltay) + abs(deltax)))))
+                yIndex = int(tank.y+math.floor(i*(deltay / (abs(deltay) + abs(deltax)))))
+                if self.beliefMap[xIndex][yIndex] > .9:
+                    print 'Tangential'
+                    dist = math.sqrt((xIndex - tank.x)**2 + (yIndex - tank.y)**2)
+                    if dist == 0:
+                        dist = 0.001
+                    target_angle = math.atan2(yIndex - tank.y, xIndex - tank.x)
+                    tangent_angle = self.normalize_angle(target_angle + math.pi/2)
+                    relative_angle = self.normalize_angle(tangent_angle - tank.angle)
+                    speeds.append(-1/dist)
+                    angles.append(tangent_angle)
+        """
+
+           
+        """
+        if grid[tank.x+1][tank.y] > .7:
+            #get around wall to the right of the tank
+        elif grid[tank.x-1][tank.y] > .7:
+            #get around wall to the left of the tank
+        elif grid[tank.x][tank.y+1] > .7:
+            #get around wall above the tank
+        elif grid[tank.x][tank.y-1] > .7:
+            #get around wall below the tank
+        """
                 
         return zip(speeds, angles)
         
@@ -471,16 +536,20 @@ def main():
 
     agent = basicAgent(bzrc)
 
-    prev_time = time.time()
-
     init_window(800,800)
     # Run the agent
     try:
+        tickCounter = 0
+        prev_time = time.time()
         while True:
             time_diff = time.time() - prev_time
+            prev_time = time.time()
             agent.tick(time_diff)
-            draw_grid()
-            update_grid(numpy.array(zip(*agent.beliefMap)))
+            if tickCounter % 10 == 0:
+                draw_grid()
+                update_grid(numpy.array(zip(*agent.beliefMap)))
+                #update_grid(numpy.array(agent.beliefMap))
+            tickCounter = tickCounter + 1
     except KeyboardInterrupt:
         print "Exiting due to keyboard interrupt."
         bzrc.close()
