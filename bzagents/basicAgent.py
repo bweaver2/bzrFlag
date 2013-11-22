@@ -103,6 +103,12 @@ class basicAgent(object):
     def __init__(self, bzrc):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
+        if self.constants['truepositive']:
+            TRUE_HIT = self.constants['truepositive']
+            print 'new true hit:', TRUE_HIT
+        if self.constants['truenegative']:
+            TRUE_MISS = self.constants['truenegative']
+            print 'new true mess:', TRUE_MISS
         self.commands = []
         self.PLOT_FILE = bzrc.get_plot_file()
         self.base = None
@@ -117,10 +123,14 @@ class basicAgent(object):
         self.last_posy = []
         self.last_pos = []
         self.WAYPOINTS_ARRAY = [
-            #[[-350,350], [350,350], [350,250], [-350,250]],  #Tank 1
-            #[[-350,150], [350,150], [350,50],  [-350,50]],   #Tank 2
-            [[-350,-50], [350,-50], [350,-150],[-350,-150]], #Tank 3
-            [[-350,-250],[350,-250],[350,-350],[-350,-350]]  #Tank 4
+            [[-350,350],   [-175,350], [0,350], [175,350],  [350,350], 
+                [350,250], [175,250],  [0,250], [-175,250], [-350,250]],  #Tank 1
+            [[-350,150],   [-175,150], [0,150], [175,150],  [350,150], 
+                [350,50],  [175,50],   [0,50],  [-175,50],  [-350,50]],   #Tank 2
+            [[-350,-50],   [-175,-50], [0,-50], [175,-50],  [350,-50], 
+                [350,-150],[175,-150], [0,-150],[-175,-150],[-350,-150]], #Tank 3
+            [[-350,-250],  [-175,-250],[0,-250],[175,-250], [350,-250],
+                [350,-350],[175,-350], [0,-350],[-175,-350],[-350,-350]]  #Tank 4
             ]
         self.last_ang = []
         for tank in mytanks:
@@ -238,7 +248,9 @@ class basicAgent(object):
                 if x > tankWayPoints[tankWayPointIndex][0]-rangeCheck and x < tankWayPoints[tankWayPointIndex][0]+rangeCheck:
                     if y > tankWayPoints[tankWayPointIndex][1]-rangeCheck and y < tankWayPoints[tankWayPointIndex][1]+rangeCheck:
                         self.CUR_WAYPOINT[tank.index] = tankWayPointIndex + 1
-            
+            #else we start over
+            else:
+                self.CUR_WAYPOINT[tank.index] = 0
             self.last_posx[tank.index] = tank.x
             self.last_posy[tank.index] = tank.y
         results = self.bzrc.do_commands(self.commands)
@@ -377,13 +389,13 @@ class basicAgent(object):
         deltax = tankWayPoints[tankWayPointIndex][0] - tank.x
         deltay = tankWayPoints[tankWayPointIndex][1] - tank.y
 
-        for i in xrange(len(self.beliefMap)):
-            for j in xrange(len(self.beliefMap)):
-                if self.beliefMap[i][j] > .99:
-                    print i, j
-        radius = 3
-        for relativeX in xrange(50-radius, 50+radius):
-            for relativeY in xrange(50-radius, 50+radius):
+        #for i in xrange(len(self.beliefMap)):
+        #    if 1 in self.beliefMap[i]:
+        #        print i, 'start', self.beliefMap[i].index(1), 'end', self.beliefMap[i][::-1].index(1)
+
+        radius = 5
+        for relativeX in xrange(50-radius, 50+radius+1):
+            for relativeY in xrange(50-radius, 50+radius+1):
                 SensorX = int(relativeX + pos[0] + 400)
                 SensorY = int(relativeY + pos[1] + 400)
                 if SensorX < 0 or SensorY < 0 or SensorX >= 800 or SensorY >= 800:
@@ -391,14 +403,17 @@ class basicAgent(object):
                 occupied = self.beliefMap[SensorX][SensorY]
                 #print 'x', SensorX, 'y', SensorY, 'bel', occupied, 'tankx', tank.x, 'tanky', tank.y
                 if occupied > .7:
-                    print 'Tangential'
+                    #print 'Tangential'
                     dist = math.sqrt((relativeX - 50)**2 + (relativeY - 50)**2)
                     if dist == 0:
                         dist = 0.001
                     target_angle = math.atan2(relativeY - 50, relativeX - 50)
                     tangent_angle = self.normalize_angle(target_angle + math.pi/2)
                     relative_angle = self.normalize_angle(tangent_angle - tank.angle)
-                    speeds.append(-1/dist)
+                    speed = -1/dist
+                    if speed > 1:
+                        speed = 1
+                    speeds.append(speed)
                     angles.append(tangent_angle)
 
         othertanks = self.bzrc.get_othertanks()
