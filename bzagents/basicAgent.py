@@ -117,8 +117,8 @@ class basicAgent(object):
         self.last_posy = []
         self.last_pos = []
         self.WAYPOINTS_ARRAY = [
-            [[-350,350], [350,350], [350,250], [-350,250]],  #Tank 1
-            [[-350,150], [350,150], [350,50],  [-350,50]],   #Tank 2
+            #[[-350,350], [350,350], [350,250], [-350,250]],  #Tank 1
+            #[[-350,150], [350,150], [350,50],  [-350,50]],   #Tank 2
             [[-350,-50], [350,-50], [350,-150],[-350,-150]], #Tank 3
             [[-350,-250],[350,-250],[350,-350],[-350,-350]]  #Tank 4
             ]
@@ -369,6 +369,7 @@ class basicAgent(object):
                     angles.append(tangent_angle)
         """
         #lab2
+        pos, grid = self.bzrc.get_occgrid(tank.index)
         obstacleInfluenceRange = 5
         tankWayPointIndex = self.CUR_WAYPOINT[tank.index]
         tankWayPoints = self.WAYPOINTS_ARRAY[tank.index]
@@ -376,24 +377,39 @@ class basicAgent(object):
         deltax = tankWayPoints[tankWayPointIndex][0] - tank.x
         deltay = tankWayPoints[tankWayPointIndex][1] - tank.y
 
+        for i in xrange(len(self.beliefMap)):
+            for j in xrange(len(self.beliefMap)):
+                if self.beliefMap[i][j] > .99:
+                    print i, j
         radius = 3
-        for i in xrange(0, radius * 2):
-            for j in xrange(0, radius * 2):
-                xIndex = int(tank.x + i - radius + 400)
-                yIndex = int(tank.y + i - radius + 400)
-                print xIndex, yIndex, self.beliefMap[xIndex][yIndex]
-                if 400 > xIndex and xIndex > -400 and 400 > yIndex and yIndex > -400 and self.beliefMap[xIndex][yIndex] > .6:
-                    
+        for relativeX in xrange(50-radius, 50+radius):
+            for relativeY in xrange(50-radius, 50+radius):
+                SensorX = int(relativeX + pos[0] + 400)
+                SensorY = int(relativeY + pos[1] + 400)
+                if SensorX < 0 or SensorY < 0 or SensorX >= 800 or SensorY >= 800:
+                    continue
+                occupied = self.beliefMap[SensorX][SensorY]
+                #print 'x', SensorX, 'y', SensorY, 'bel', occupied, 'tankx', tank.x, 'tanky', tank.y
+                if occupied > .7:
                     print 'Tangential'
-                    dist = math.sqrt((xIndex - tank.x)**2 + (yIndex - tank.y)**2)
+                    dist = math.sqrt((relativeX - 50)**2 + (relativeY - 50)**2)
                     if dist == 0:
                         dist = 0.001
-                    target_angle = math.atan2(yIndex - tank.y, xIndex - tank.x)
+                    target_angle = math.atan2(relativeY - 50, relativeX - 50)
                     tangent_angle = self.normalize_angle(target_angle + math.pi/2)
                     relative_angle = self.normalize_angle(tangent_angle - tank.angle)
                     speeds.append(-1/dist)
                     angles.append(tangent_angle)
 
+        othertanks = self.bzrc.get_othertanks()
+        for enemy in othertanks:
+            dist = math.sqrt((enemy.x - tank.x)**2 + (enemy.y - tank.y)**2)
+            if dist < 10:
+                target_angle = math.atan2(enemy.y - tank.y, enemy.x - tank.x)
+                tangent_angle = self.normalize_angle(target_angle + math.pi/2)
+                relative_angle = self.normalize_angle(tangent_angle - tank.angle)
+                speeds.append(-1/dist)
+                angles.append(tangent_angle)
         """
         if deltax != 0 and deltay != 0:
             for i in xrange(5):
