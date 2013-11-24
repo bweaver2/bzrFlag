@@ -25,6 +25,7 @@ import math
 import time
 import numpy
 from numpy import *
+from operator import itemgetter, attrgetter
 
 from bzrc import BZRC, Command
 
@@ -191,6 +192,8 @@ class basicAgent(object):
 			self.time_to_print = 20
         self.time_to_print = self.time_to_print - time_diff
 
+        stuck = True
+
         "we need a new speed, a new angle, and whether or not to shoot"
         for tank in curTanks:
             self.updateBelief(tank)
@@ -245,6 +248,13 @@ class basicAgent(object):
                     print 'random', newPoint
                     tankWayPoints.insert(tankWayPointIndex, newPoint)
                 """
+                if stuck:
+                    stuck = False
+                    newWayPoints = self.get_closest_reachable_gray(tank, tankWayPoints[tankWayPointIndex]);
+                    print newWayPoints
+                    if newWayPoints:
+                        self.WAYPOINTS_ARRAY[tank.index] = newWayPoints + self.WAYPOINTS_ARRAY[tank.index]
+
                 if x > tankWayPoints[tankWayPointIndex][0]-rangeCheck and x < tankWayPoints[tankWayPointIndex][0]+rangeCheck:
                     if y > tankWayPoints[tankWayPointIndex][1]-rangeCheck and y < tankWayPoints[tankWayPointIndex][1]+rangeCheck:
                         self.CUR_WAYPOINT[tank.index] = tankWayPointIndex + 1
@@ -519,6 +529,55 @@ class basicAgent(object):
 
     def should_shoot(self, tank, flags, shots, obstacles):
         return True
+
+    #returns the closest reachable gray to a given goal node
+    def get_closest_reachable_gray(self, tank, goal):
+        tankx = int(tank.x) + 400
+        tanky = int(tank.y) + 400
+        goalx = int(goal[0]) + 400
+        goaly = int(goal[1]) + 400
+        nodes = [[0, [tankx, tanky], []]] #will take (cost, (x, y), pathToHere)
+        visitedNodes = [[tankx, tanky]] #keeps track of every coordinate we check, so there are no repeats
+        black_threshold = 0.5 #anything less than .5 is considered black
+        #search as long as there is a valid node to search
+        while len(nodes) > 0:
+            #sort path to make sure we get the lowest code option
+            nodes = sorted(nodes, key=itemgetter(0))
+            #for p in nodes: print p[0]
+            print "first", nodes[0][0], "last", nodes[-1][0]
+            curNode = nodes.pop(0)
+            nodex = curNode[1][0]
+            nodey = curNode[1][1]
+            print "expanding", curNode[0]
+            #print self.beliefMap[nodex][nodey], nodex, nodey
+            if self.beliefMap[nodex][nodey] == 0.5:
+                print "Found valid gray!"
+                return curNode[2]
+            elif self.beliefMap[nodex][nodey] <= black_threshold:
+                #print "expanding black node", curNode
+                #expand node - the nodes all around it (so 9 if we include the diagonals)
+                for i in xrange(-1, 2):
+                    for j in xrange(-1, 2):
+                        if not (i == 0 and j == 0):
+                            checkx = i + nodex
+                            checky = j + nodey
+                            checkedList = [checkx, checky]
+                            #print "  checking", checkedList
+                            #check if if the expanded node values are on the map and unvisited
+                            if checkx >= 0 and checkx < 800 and checky >= 0 and checky < 800 and not checkedList in visitedNodes:
+                                visitedNodes.append(checkedList)
+                                if self.beliefMap[checkx][checky] <= black_threshold:
+                                    #get the euclidian distance for this valid node
+                                    dist = math.sqrt((checkx - goalx)**2 + (checky - goaly)**2)
+                                    #new partial path
+                                    checkPath = []
+                                    checkPath.extend(curNode[2])
+                                    checkPath.append([checkx, checky])
+                                    #add the node to the nodes array
+                                    nodes.append([dist, [checkx, checky], checkPath])
+        #end of while loop
+        return None
+
 
 #borrowed from http://www.cs.mun.ca/~rod/2500/notes/numpy-arrays/numpy-arrays.html
 #
