@@ -543,18 +543,12 @@ class basicAgent(object):
         while len(nodes) > 0:
             #sort path to make sure we get the lowest code option
             nodes = sorted(nodes, key=itemgetter(0))
-            #for p in nodes: print p[0]
-            print "first", nodes[0][0], "last", nodes[-1][0]
             curNode = nodes.pop(0)
             nodex = curNode[1][0]
             nodey = curNode[1][1]
-            print "expanding", curNode[0]
-            #print self.beliefMap[nodex][nodey], nodex, nodey
             if self.beliefMap[nodex][nodey] == 0.5:
-                print "Found valid gray!"
                 return curNode[2]
             elif self.beliefMap[nodex][nodey] <= black_threshold:
-                #print "expanding black node", curNode
                 #expand node - the nodes all around it (so 9 if we include the diagonals)
                 for i in xrange(-1, 2):
                     for j in xrange(-1, 2):
@@ -562,7 +556,6 @@ class basicAgent(object):
                             checkx = i + nodex
                             checky = j + nodey
                             checkedList = [checkx, checky]
-                            #print "  checking", checkedList
                             #check if if the expanded node values are on the map and unvisited
                             if checkx >= 0 and checkx < 800 and checky >= 0 and checky < 800 and not checkedList in visitedNodes:
                                 visitedNodes.append(checkedList)
