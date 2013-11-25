@@ -5,58 +5,90 @@ set yrange [-400.0: 400.0]
 set size square
 
 unset arrow
-set arrow from 75.0, 75.0 to 75.0, 45.0 nohead lt 3
-set arrow from 75.0, 45.0 to 45.0, 45.0 nohead lt 3
-set arrow from 45.0, 45.0 to 45.0, 75.0 nohead lt 3
-set arrow from 45.0, 75.0 to 75.0, 75.0 nohead lt 3
-set arrow from 75.0, 105.0 to 75.0, 75.0 nohead lt 3
-set arrow from 75.0, 75.0 to 45.0, 75.0 nohead lt 3
-set arrow from 45.0, 75.0 to 45.0, 105.0 nohead lt 3
-set arrow from 45.0, 105.0 to 75.0, 105.0 nohead lt 3
-set arrow from 105.0, 75.0 to 105.0, 45.0 nohead lt 3
-set arrow from 105.0, 45.0 to 75.0, 45.0 nohead lt 3
-set arrow from 75.0, 45.0 to 75.0, 75.0 nohead lt 3
-set arrow from 75.0, 75.0 to 105.0, 75.0 nohead lt 3
-set arrow from 75.0, -45.0 to 75.0, -75.0 nohead lt 3
-set arrow from 75.0, -75.0 to 45.0, -75.0 nohead lt 3
-set arrow from 45.0, -75.0 to 45.0, -45.0 nohead lt 3
-set arrow from 45.0, -45.0 to 75.0, -45.0 nohead lt 3
-set arrow from 105.0, -45.0 to 105.0, -75.0 nohead lt 3
-set arrow from 105.0, -75.0 to 75.0, -75.0 nohead lt 3
-set arrow from 75.0, -75.0 to 75.0, -45.0 nohead lt 3
-set arrow from 75.0, -45.0 to 105.0, -45.0 nohead lt 3
-set arrow from 75.0, -75.0 to 75.0, -105.0 nohead lt 3
-set arrow from 75.0, -105.0 to 45.0, -105.0 nohead lt 3
-set arrow from 45.0, -105.0 to 45.0, -75.0 nohead lt 3
-set arrow from 45.0, -75.0 to 75.0, -75.0 nohead lt 3
-set arrow from -45.0, -45.0 to -45.0, -75.0 nohead lt 3
-set arrow from -45.0, -75.0 to -75.0, -75.0 nohead lt 3
-set arrow from -75.0, -75.0 to -75.0, -45.0 nohead lt 3
-set arrow from -75.0, -45.0 to -45.0, -45.0 nohead lt 3
-set arrow from -45.0, -75.0 to -45.0, -105.0 nohead lt 3
-set arrow from -45.0, -105.0 to -75.0, -105.0 nohead lt 3
-set arrow from -75.0, -105.0 to -75.0, -75.0 nohead lt 3
-set arrow from -75.0, -75.0 to -45.0, -75.0 nohead lt 3
-set arrow from -75.0, -45.0 to -75.0, -75.0 nohead lt 3
-set arrow from -75.0, -75.0 to -105.0, -75.0 nohead lt 3
-set arrow from -105.0, -75.0 to -105.0, -45.0 nohead lt 3
-set arrow from -105.0, -45.0 to -75.0, -45.0 nohead lt 3
-set arrow from -45.0, 75.0 to -45.0, 45.0 nohead lt 3
-set arrow from -45.0, 45.0 to -75.0, 45.0 nohead lt 3
-set arrow from -75.0, 45.0 to -75.0, 75.0 nohead lt 3
-set arrow from -75.0, 75.0 to -45.0, 75.0 nohead lt 3
-set arrow from -45.0, 105.0 to -45.0, 75.0 nohead lt 3
-set arrow from -45.0, 75.0 to -75.0, 75.0 nohead lt 3
-set arrow from -75.0, 75.0 to -75.0, 105.0 nohead lt 3
-set arrow from -75.0, 105.0 to -45.0, 105.0 nohead lt 3
-set arrow from -75.0, 75.0 to -75.0, 45.0 nohead lt 3
-set arrow from -75.0, 45.0 to -105.0, 45.0 nohead lt 3
-set arrow from -105.0, 45.0 to -105.0, 75.0 nohead lt 3
-set arrow from -105.0, 75.0 to -75.0, 75.0 nohead lt 3
-set arrow from 5.0, 30.0 to 5.0, -30.0 nohead lt 3
-set arrow from 5.0, -30.0 to -5.0, -30.0 nohead lt 3
-set arrow from -5.0, -30.0 to -5.0, 30.0 nohead lt 3
-set arrow from -5.0, 30.0 to 5.0, 30.0 nohead lt 3
+set arrow from -380.0, 400.0 to -380.0, -400.0 nohead lt 3
+set arrow from -380.0, -400.0 to -400.0, -400.0 nohead lt 3
+set arrow from -400.0, -400.0 to -400.0, 400.0 nohead lt 3
+set arrow from -400.0, 400.0 to -380.0, 400.0 nohead lt 3
+set arrow from -20.0, 400.0 to -20.0, 380.0 nohead lt 3
+set arrow from -20.0, 380.0 to -380.0, 380.0 nohead lt 3
+set arrow from -380.0, 380.0 to -380.0, 400.0 nohead lt 3
+set arrow from -380.0, 400.0 to -20.0, 400.0 nohead lt 3
+set arrow from -20.0, -380.0 to -20.0, -400.0 nohead lt 3
+set arrow from -20.0, -400.0 to -380.0, -400.0 nohead lt 3
+set arrow from -380.0, -400.0 to -380.0, -380.0 nohead lt 3
+set arrow from -380.0, -380.0 to -20.0, -380.0 nohead lt 3
+set arrow from 20.0, 400.0 to 20.0, -300.0 nohead lt 3
+set arrow from 20.0, -300.0 to -20.0, -300.0 nohead lt 3
+set arrow from -20.0, -300.0 to -20.0, 400.0 nohead lt 3
+set arrow from -20.0, 400.0 to 20.0, 400.0 nohead lt 3
+set arrow from 20.0, -340.0 to 20.0, -400.0 nohead lt 3
+set arrow from 20.0, -400.0 to -20.0, -400.0 nohead lt 3
+set arrow from -20.0, -400.0 to -20.0, -340.0 nohead lt 3
+set arrow from -20.0, -340.0 to 20.0, -340.0 nohead lt 3
+set arrow from -220.0, 60.0 to -220.0, 20.0 nohead lt 3
+set arrow from -220.0, 20.0 to -380.0, 20.0 nohead lt 3
+set arrow from -380.0, 20.0 to -380.0, 60.0 nohead lt 3
+set arrow from -380.0, 60.0 to -220.0, 60.0 nohead lt 3
+set arrow from -100.0, -20.0 to -100.0, -60.0 nohead lt 3
+set arrow from -100.0, -60.0 to -380.0, -60.0 nohead lt 3
+set arrow from -380.0, -60.0 to -380.0, -20.0 nohead lt 3
+set arrow from -380.0, -20.0 to -100.0, -20.0 nohead lt 3
+set arrow from -100.0, 100.0 to -100.0, -20.0 nohead lt 3
+set arrow from -100.0, -20.0 to -180.0, -20.0 nohead lt 3
+set arrow from -180.0, -20.0 to -180.0, 100.0 nohead lt 3
+set arrow from -180.0, 100.0 to -100.0, 100.0 nohead lt 3
+set arrow from -100.0, 340.0 to -100.0, 100.0 nohead lt 3
+set arrow from -100.0, 100.0 to -340.0, 100.0 nohead lt 3
+set arrow from -340.0, 100.0 to -340.0, 340.0 nohead lt 3
+set arrow from -340.0, 340.0 to -100.0, 340.0 nohead lt 3
+set arrow from -20.0, 340.0 to -20.0, 300.0 nohead lt 3
+set arrow from -20.0, 300.0 to -60.0, 300.0 nohead lt 3
+set arrow from -60.0, 300.0 to -60.0, 340.0 nohead lt 3
+set arrow from -60.0, 340.0 to -20.0, 340.0 nohead lt 3
+set arrow from -60.0, 260.0 to -60.0, 220.0 nohead lt 3
+set arrow from -60.0, 220.0 to -100.0, 220.0 nohead lt 3
+set arrow from -100.0, 220.0 to -100.0, 260.0 nohead lt 3
+set arrow from -100.0, 260.0 to -60.0, 260.0 nohead lt 3
+set arrow from -20.0, 180.0 to -20.0, 140.0 nohead lt 3
+set arrow from -20.0, 140.0 to -60.0, 140.0 nohead lt 3
+set arrow from -60.0, 140.0 to -60.0, 180.0 nohead lt 3
+set arrow from -60.0, 180.0 to -20.0, 180.0 nohead lt 3
+set arrow from -60.0, 100.0 to -60.0, 60.0 nohead lt 3
+set arrow from -60.0, 60.0 to -100.0, 60.0 nohead lt 3
+set arrow from -100.0, 60.0 to -100.0, 100.0 nohead lt 3
+set arrow from -100.0, 100.0 to -60.0, 100.0 nohead lt 3
+set arrow from -20.0, 20.0 to -20.0, -20.0 nohead lt 3
+set arrow from -20.0, -20.0 to -60.0, -20.0 nohead lt 3
+set arrow from -60.0, -20.0 to -60.0, 20.0 nohead lt 3
+set arrow from -60.0, 20.0 to -20.0, 20.0 nohead lt 3
+set arrow from -220.0, -100.0 to -220.0, -260.0 nohead lt 3
+set arrow from -220.0, -260.0 to -340.0, -260.0 nohead lt 3
+set arrow from -340.0, -260.0 to -340.0, -100.0 nohead lt 3
+set arrow from -340.0, -100.0 to -220.0, -100.0 nohead lt 3
+set arrow from -260.0, -300.0 to -260.0, -380.0 nohead lt 3
+set arrow from -260.0, -380.0 to -340.0, -380.0 nohead lt 3
+set arrow from -340.0, -380.0 to -340.0, -300.0 nohead lt 3
+set arrow from -340.0, -300.0 to -260.0, -300.0 nohead lt 3
+set arrow from -20.0, -100.0 to -20.0, -300.0 nohead lt 3
+set arrow from -20.0, -300.0 to -180.0, -300.0 nohead lt 3
+set arrow from -180.0, -300.0 to -180.0, -100.0 nohead lt 3
+set arrow from -180.0, -100.0 to -20.0, -100.0 nohead lt 3
+set arrow from -60.0, -300.0 to -60.0, -340.0 nohead lt 3
+set arrow from -60.0, -340.0 to -220.0, -340.0 nohead lt 3
+set arrow from -220.0, -340.0 to -220.0, -300.0 nohead lt 3
+set arrow from -220.0, -300.0 to -60.0, -300.0 nohead lt 3
 
 
 plot '-' with vectors head
+-264.0 -15.0 1.16183330595 -4.86314130673
+-264.0 -15.0 1.16183330595 -4.86314130673
+-308.0 -15.0 4.99707372403 -0.171038582321
+-308.0 -15.0 4.99707372403 -0.171038582321
+-248.0 -15.0 4.47551338299 -2.2293003294
+-248.0 -15.0 4.62900711422 -1.89005109362
+-245.0 15.0 -2.56704168296 4.29072220005
+-245.0 15.0 -2.56704168296 4.29072220005
+-355.0 -15.0 4.99833449818 0.129043575365
+-355.0 -15.0 4.9880115672 0.34603555527
+-294.0 -15.0 4.99684412534 -0.177619782376
+-294.0 -15.0 4.99684412534 -0.177619782376

@@ -192,8 +192,6 @@ class basicAgent(object):
 			self.time_to_print = 20
         self.time_to_print = self.time_to_print - time_diff
 
-        stuck = True
-
         "we need a new speed, a new angle, and whether or not to shoot"
         for tank in curTanks:
             self.updateBelief(tank)
@@ -248,8 +246,11 @@ class basicAgent(object):
                     print 'random', newPoint
                     tankWayPoints.insert(tankWayPointIndex, newPoint)
                 """
+                stuck = self.is_tank_stuck(tank)
+                print 'current goal', tankWayPoints[tankWayPointIndex], [tank.x, tank.y]
                 if stuck:
                     stuck = False
+                    print 'stuck!'
                     newWayPoints = self.get_closest_reachable_gray(tank, tankWayPoints[tankWayPointIndex]);
                     print newWayPoints
                     if newWayPoints:
@@ -264,6 +265,55 @@ class basicAgent(object):
             self.last_posx[tank.index] = tank.x
             self.last_posy[tank.index] = tank.y
         results = self.bzrc.do_commands(self.commands)
+
+    def is_tank_stuck(self, tank):
+        # a tank is stuck if the path in fron of it is occupied (wall, other tanks)
+        tankx = int(tank.x) + 400
+        tanky = int(tank.y - 400) * -1
+        othertanks = self.bzrc.get_othertanks()
+        mytanks = self.bzrc.get_mytanks()
+        tankWayPointIndex = self.CUR_WAYPOINT[tank.index]
+        tankWayPoints = self.WAYPOINTS_ARRAY[tank.index]
+
+        #check for friendly tank
+        for nextTank in mytanks:
+            if tank.index != nextTank.index:
+                dist = math.sqrt((nextTank.x - tank.x)**2 + (nextTank.y - tank.y)**2)
+                if dist < 1:
+                    return True
+
+        #check for enemy tank
+        for nextTank in othertanks:
+            dist = math.sqrt((nextTank.x - tank.x)**2 + (nextTank.y - tank.y)**2)
+            if dist < 1:
+                return True
+
+        x_point = int(math.ceil(tankx - 10*cos(tank.angle)))
+        y_point = int(math.ceil(tanky - 10*sin(tank.angle)))
+        if self.beliefMap[x_point][y_point] > .9:
+            ang1 = math.atan2(y_point + (tanky),x_point - (tankx))
+            ang2 = math.atan2(tankWayPoints[tankWayPointIndex][1]-int(tank.y),tankWayPoints[tankWayPointIndex][0]-int(tank.x))
+            #                    print ang1, ang2
+            if ang1 +math.pi/4 > ang2 and ang1-math.pi/4 < ang2:
+                print 'stuck'
+                return True
+
+        '''
+        #check for wall
+        white_threshold = .9
+        for i in xrange(-1, 2):
+            for j in xrange(-1, 2):
+                if not (i == 0 and j == 0):
+                    checkx = i + tankx
+                    checky = j + tanky
+                    #check if if the values are on the map and unvisited
+                    if checkx >= 0 and checkx < 800 and checky >= 0 and checky < 800:
+                        if self.beliefMap[checkx][checky] >= white_threshold:
+                            return True
+        '''
+
+
+
 
     def normalize_angle(self, angle):
         """Make any angle be between +/- pi."""
@@ -280,7 +330,7 @@ class basicAgent(object):
         vectors = []
         #vectors.extend(self.get_repulsive_vectors(tank, shots))
         vectors.extend(self.get_attractive_vectors(tank, flags))
-        vectors.extend(self.get_tangential_vectors(tank, obstacles))
+        #vectors.extend(self.get_tangential_vectors(tank, obstacles))
         for speed, angle in vectors:
             final_speed += speed
             final_angle += angle
@@ -362,10 +412,10 @@ class basicAgent(object):
         dist = math.sqrt((tankWayPoints[tankWayPointIndex][0] - tank.x)**2 + (tankWayPoints[tankWayPointIndex][1] - tank.y)**2)
         target_angle = math.atan2(tankWayPoints[tankWayPointIndex][1] - tank.y, tankWayPoints[tankWayPointIndex][0] - tank.x)
         relative_angle = self.normalize_angle(target_angle - tank.angle)
-        if dist > self.FLAG_MAX_DISTANCE:
+        if dist >= self.FLAG_MAX_DISTANCE:
             speed = self.FLAG_MAX_SPEED
-        elif dist > self.FLAG_MIN_DISTANCE:
-            speed = dist
+        elif dist >= self.FLAG_MIN_DISTANCE:
+            speed = 1
         angle = relative_angle
         speeds.append(speed)
         angles.append(angle)
@@ -565,7 +615,7 @@ class basicAgent(object):
                                     #new partial path
                                     checkPath = []
                                     checkPath.extend(curNode[2])
-                                    checkPath.append([checkx, checky])
+                                    checkPath.append([checkx - 400, (checky * -1) + 400])
                                     #add the node to the nodes array
                                     nodes.append([dist, [checkx, checky], checkPath])
         #end of while loop
