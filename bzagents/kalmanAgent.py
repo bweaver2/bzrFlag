@@ -24,6 +24,7 @@ import sys
 import math
 import time
 from numpy import *
+from numpy.linalg import *
 from operator import itemgetter, attrgetter
 
 from bzrc import BZRC, Command
@@ -67,7 +68,7 @@ def init_window(width, height):
     glLoadIdentity()
     #glutMainLoop()
 
-class basicAgent(object):
+class kalmanAgent(object):
     """Class handles all command and control logic for a teams tanks."""
     ENEMY_TANK_MIN_DISTANCE = 1
     ENEMY_TANK_MAX_DISTANCE = 5
@@ -93,34 +94,34 @@ class basicAgent(object):
     #map[800][800] = top right corner
     baseBelief = 0.5
     beliefMap = [[baseBelief for x in xrange(800)] for x in xrange(800)]
-    mu0 = array([[0],[0],[0],[0],[0],[0]])
-    sigma0 = array([[100,0,0,0,0,0],
-                    [0,0.1,0,0,0,0]
-                    [0,0,0.1,0,0,0]
-                    [0,0,0,100,0,0]
-                    [0,0,0,0,0.1,0]
+    mu = array([[0],[0],[0],[0],[0],[0]])
+    sigmaT = array([[100,0,0,0,0,0],
+                    [0,0.1,0,0,0,0],
+                    [0,0,0.1,0,0,0],
+                    [0,0,0,100,0,0],
+                    [0,0,0,0,0.1,0],
                     [0,0,0,0,0,0.1]])
-    H = array([[0,0,0,0,0,0]
-                          [0,0,0,0,0,0]])
+    H = array([[1,0,0,0,0,0],
+               [0,0,0,1,0,0]])
     H_tr = H.transpose()
-    sigmaZ = array([[25,0]
+    sigmaZ = array([[25,0],
                     [0,25]])
     dt = 0.5 #change in time between computations
     c = .1 #friction coeficient
     #assuming computations every 0.5 seconds
-    F = array([[1,dt,(dt^2)/2,0,0,0]
-                      [0,1, dt,  0,0, 0]
-                      [0,-c,1,   0,0, 0]
-                      [0,0, 0,   1,dt,(dt^2)/2]
-                      [0,0, 0,   0,1, dt]
-                      [0,0, 0,   0,-c,1]])
-	F_tr = F.transpose()
+    F = array([[1,dt,(dt*dt)/2,0,0,0],
+              [0,1, dt,  0,0, 0],
+              [0,-c,1,   0,0, 0],
+              [0,0, 0,   1,dt,(dt*dt)/2],
+              [0,0, 0,   0,1, dt],
+              [0,0, 0,   0,-c,1]])
+    F_tr = F.transpose()
 
     sigmaX = array([[0.1,0,0,0,0,0],
-                    [0,0.1,0,0,0,0]
-                    [0,0,100,0,0,0]
-                    [0,0,0,0.1,0,0]
-                    [0,0,0,0,0.1,0]
+                    [0,0.1,0,0,0,0],
+                    [0,0,100,0,0,0],
+                    [0,0,0,0.1,0,0],
+                    [0,0,0,0,0.1,0],
                     [0,0,0,0,0,100]])
 
 
@@ -128,22 +129,31 @@ class basicAgent(object):
     last_posy = []
     last_ang = []
     time_to_print = 0
-	
-	def __updateKalman(self):
-		k_in = F.dot(sigmaT).dot(F_tr)+sigmaX
-		k_in2 = H.dot(k_in).dot(H_tr)+sigmaZ
-		k_in3 = inv(k_in2)
-		k_next = k_in.dot(H_tr).dot(k_in3)
-		mu_next = F.dot(mu)+k_next.dot(z_next-H.dot(F).dot(mu)
-		sigmaT_next = ((identity(6)-k_next.dot(H)).dot(k_in)
-		
-		pos = mu_next.dot(H)
-		print pos
-		
-		sigmaT = sigmaT_next
-		mu = mu_next
-		k = k_next
-	
+    
+    def __updateKalman(self, z_next):
+        F = self.F
+        F_tr = self.F_tr
+        H = self.H
+        H_tr = self.H_tr
+        sigmaT = self.sigmaT
+        mu = self.mu
+        sigmaX = self.sigmaX
+        sigmaZ = self.sigmaZ
+
+        k_in = F.dot(sigmaT).dot(F_tr)+sigmaX
+        k_in2 = H.dot(k_in).dot(H_tr)+sigmaZ
+        k_in3 = inv(k_in2)
+        k_next = k_in.dot(H_tr).dot(k_in3)
+
+        mu_in = z_next-H.dot(F).dot(mu) 
+        mu_next = F.dot(mu) + k_next.dot(mu_in)
+        sigmaT_next = ((identity(6)-k_next.dot(H)).dot(k_in))
+        print sigmaT_next
+
+        self.sigmaT = sigmaT_next
+        self.mu = mu_next
+        return H.dot(self.mu), self.sigmaT
+
     def __init__(self, bzrc):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
@@ -185,131 +195,50 @@ class basicAgent(object):
 
     
 
-    def updateBelief(self, tank):
-        pos, grid = self.bzrc.get_occgrid(tank.index)
+    def updateBelief(self, pos, noise):
 
-        #map coordinates are centered at 0,0; top left corner is -400, 400, top right is 400, 400, etc
-        #always use given position, never the tanks position
-        #position gives bottom left corner of array
-        #buf = "grid x dim %d, grid y dim %d\n" % (len(grid),len(grid[0]))
-        #print buf
-        for relativeX in xrange(len(grid)):
-            for relativeY in xrange(len(grid[0])):
-                SensorX = relativeX + pos[0] + 400
-                SensorY = relativeY + pos[1] + 400
-                if SensorX < 0 or SensorY < 0 or SensorX >= 800 or SensorY >= 800:
-                    continue
-                occupied = grid[relativeX][relativeY]
-                prior = self.beliefMap[SensorX][SensorY]
-                if occupied == 1:
-                    # Recall that p(SensorX,SensorY) is the probability that a cell is occupied
-                    Bel_Occ = self.TRUE_HIT * prior;
-                    # So 1-p(SensorX,SensorY) is the probability that a cell is unoccupied
-                    Bel_Unocc = (1 - self.TRUE_MISS) * (1 - prior);
-                    #now we normailze
-                    self.beliefMap[SensorX][SensorY] = Bel_Occ / (Bel_Occ + Bel_Unocc);
-                else:
-                    # Recall that p(SensorX,SensorY) is the probability that a cell is occupied
-                    Bel_Occ = (1 - self.TRUE_HIT) * prior;
-                    # So 1-p(SensorX,SensorY) is the probability that a cell is unoccupied
-                    Bel_Unocc = self.TRUE_MISS * (1 - prior);
-                    #now we normailze
-                    self.beliefMap[SensorX][SensorY] = Bel_Occ / (Bel_Occ + Bel_Unocc);
+        x = int(pos[0][0]) + 400
+        y = (int(pos[1][0]) + 400)
+
+        #print the center of the belief
+        self.beliefMap[x][y] = 1
+
+        #print the certainty ring around it at one standard deviation
+        x_noise = noise[0][0]
+        y_noise = noise[3][3]
+        #print x,y,x_noise,y_noise
+        #float[] a = new float[3*361]; // 3-coordinates and 361 angles
+        for i in xrange(360):
+            c_x = int(x+math.cos(i*math.pi/180)*x_noise)
+            c_y = int(y+math.sin(i*math.pi/180)*y_noise)
+
+            if c_x < 0 or c_x >= 800 or c_y < 0 or c_y >= 800:
+                pass
+            else:
+                #print c_x,c_y
+                #the ring is going to be black
+                self.beliefMap[c_x][c_y] = 0
+
+    
+    def get_observations(self):
+        enemies = self.bzrc.get_othertanks()
+        for tank in enemies:
+            print tank.color
+            if tank.color == 'blue':
+                #we only get tank positions
+                return array([[tank.x],[tank.y]])
+
+    def clear_belief_map(self):
+        self.beliefMap = [[self.baseBelief for x in xrange(800)] for x in xrange(800)]
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
-        mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
-        obstacles = self.bzrc.get_obstacles()
-        self.mytanks = mytanks
-        self.othertanks = othertanks
-        self.flags = flags
-        self.shots = shots
-        self.enemies = [tank for tank in othertanks if tank.color !=
-                        self.constants['team']]
-        self.friendlies = [tank for tank in othertanks if tank.color ==
-                        self.constants['team']]
-        self.obstacles = obstacles
+        z_next = self.get_observations()
+        self.clear_belief_map();
+        
 
-        self.commands = []
-        curTanks = [mytanks[0]]
-        curTanks.extend(mytanks[:4])
-        if self.time_to_print < 0 :
-            self.time_to_print = 20
-        self.time_to_print = self.time_to_print - time_diff
-
-        "we need a new speed, a new angle, and whether or not to shoot"
-        for tank in curTanks:
-            self.updateBelief(tank)
-            x = tank.x
-            y = tank.y
-            tankWayPointIndex = self.CUR_WAYPOINT[tank.index]
-            tankWayPoints = self.WAYPOINTS_ARRAY[tank.index]
-            if tankWayPointIndex < len(tankWayPoints):
-                speed, angle = self.get_desired_movement(tank, flags, shots, obstacles)
-                shoot = self.should_shoot(tank, flags, shots, obstacles)
-                if time_diff > 0:
-                    velx = (tank.x-self.last_posx[tank.index])/time_diff
-                    vely = (tank.y-self.last_posy[tank.index])/time_diff
-                    veltheta = abs((tank.angle-self.last_ang[tank.index])/time_diff)
-                else:
-                    velx = 0
-                    vely = 0
-                    veltheta = 0
-                deltaX = float(speed * math.cos(angle))
-                deltaY = float(speed * math.sin(angle))
-                if self.time_to_print < 0:
-                    self.PLOT_FILE.write("%s %s %s %s\n" % (x, y, deltaX, deltaY))
-            
-                speed = speed - .001*((velx**2+vely**2)**.5)
-                speed = min(speed,1)
-                shoot = self.should_shoot(tank, flags, shots, obstacles)
-                if angle > 0 :
-                    angle = angle - .000001*veltheta
-                    angle = min(angle,1)
-                    command = Command(tank.index, speed, angle, shoot)
-                elif angle < 0:
-                    angle = angle+.000001*veltheta
-                    angle = max(angle,-1)
-                    command = Command(tank.index, speed, angle, shoot)
-                else:
-                    command = Command(tank.index, speed, 0, shoot)
-                self.commands.append(command)
-                
-                rangeCheck = 10
-                """
-                print tank.x-self.last_posx[tank.index], tank.y-self.last_posy[tank.index], time_diff
-                if ((tank.x-self.last_posx[tank.index]) == 0.0) and ((tank.y-self.last_posy[tank.index]) == 0.0) and time_diff > .1:
-                    newPoint = [0,0]
-                    tankx = int(math.floor(tank.x))
-                    tanky = int(math.floor(tank.y))
-                    while newPoint[0] < 10 and newPoint[1] < 10 and self.beliefMap[newPoint[0]+tankx][newPoint[1]+tanky] !=0:
-                        newPoint[0] = random.randint(-50, 50)
-                        newPoint[1] = random.randint(-50, 50)
-                        #if self.beliefMap[]
-                    newPoint[0] = newPoint[0] + tankx
-                    newPoint[1] = newPoint[1] + tanky
-                    print 'random', newPoint
-                    tankWayPoints.insert(tankWayPointIndex, newPoint)
-                """
-                stuck = self.is_tank_stuck(tank)
-                #print 'current goal', tankWayPoints[tankWayPointIndex], [tank.x, tank.y]
-                if stuck:
-                    stuck = False
-                    #print 'stuck!'
-                    newWayPoints = self.get_closest_reachable_gray(tank, tankWayPoints[tankWayPointIndex]);
-                    #print newWayPoints
-                    if newWayPoints:
-                        self.WAYPOINTS_ARRAY[tank.index] = newWayPoints + self.WAYPOINTS_ARRAY[tank.index]
-
-                if x > tankWayPoints[tankWayPointIndex][0]-rangeCheck and x < tankWayPoints[tankWayPointIndex][0]+rangeCheck:
-                    if y > tankWayPoints[tankWayPointIndex][1]-rangeCheck and y < tankWayPoints[tankWayPointIndex][1]+rangeCheck:
-                        self.CUR_WAYPOINT[tank.index] = tankWayPointIndex + 1
-            #else we start over
-            else:
-                self.CUR_WAYPOINT[tank.index] = 0
-            self.last_posx[tank.index] = tank.x
-            self.last_posy[tank.index] = tank.y
-        results = self.bzrc.do_commands(self.commands)
+        pos, noise = self.__updateKalman(z_next);
+        self.updateBelief(pos, noise)
 
 
 
@@ -322,24 +251,6 @@ class basicAgent(object):
         elif angle > math.pi:
             angle -= 2 * math.pi
         return angle
-
-    def get_desired_movement(self, tank, flags, shots, obstacles):
-        final_angle = 0
-        final_speed = 0
-        vectors = []
-        #vectors.extend(self.get_repulsive_vectors(tank, shots))
-        vectors.extend(self.get_attractive_vectors(tank, flags))
-        #vectors.extend(self.get_tangential_vectors(tank, obstacles))
-        for speed, angle in vectors:
-            final_speed += speed
-            final_angle += angle
-        return final_speed, final_angle
-
-    def hasFlag(self,tank,flags):
-        for flag in flags:
-            if tank.flag == flag:
-                return True;
-        return False;
 
 
 
@@ -360,7 +271,7 @@ def main():
     #bzrc = BZRC(host, int(port), debug=True)
     bzrc = BZRC(host, int(port))
 
-    agent = basicAgent(bzrc)
+    agent = kalmanAgent(bzrc)
 
     init_window(800,800)
     # Run the agent
@@ -373,7 +284,7 @@ def main():
             agent.tick(time_diff)
             if tickCounter % 10 == 0:
                 draw_grid()
-                update_grid(numpy.array(zip(*agent.beliefMap)))
+                update_grid(array(zip(*agent.beliefMap)))
                 #update_grid(numpy.array(agent.beliefMap))
             tickCounter = tickCounter + 1
     except KeyboardInterrupt:
