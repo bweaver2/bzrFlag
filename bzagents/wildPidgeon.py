@@ -23,6 +23,7 @@
 import sys
 import math
 import time
+import random
 
 from bzrc import BZRC, Command
 
@@ -33,23 +34,56 @@ class Agent(object):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.commands = []
+        self.tank_movement = {}
+        my_tanks = self.bzrc.get_mytanks()
+        for tank in my_tanks:
+            speed = random.uniform(0.1, 5)
+            x,y = self.get_random_point()
+            self.tank_movement[tank.index] = {'speed': speed, 'x': x, 'y': y, 'last_run': time.time()}
+
+
+    def get_random_point(self):
+        p1 = random.uniform(-400, 400)
+        p2 = 405
+        isX = bool(random.getrandbits(1))
+        isPos = bool(random.getrandbits(1))
+
+        if isPos:
+            p2 *= -1
+
+        if isX:
+            x = p1
+            y = p2
+        else:
+            x = p2
+            y = p1
+
+        return x, y
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
-        mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
+        mytanks = self.bzrc.get_mytanks()
         self.mytanks = mytanks
-        self.othertanks = othertanks
-        self.flags = flags
-        self.shots = shots
-        self.enemies = [tank for tank in othertanks if tank.color !=
-                        self.constants['team']]
 
         self.commands = []
+        #print self.tank_movement
 
         for tank in mytanks:
-            self.attack_enemies(tank)
+
+            isPos = bool(random.getrandbits(1))
+            speed = random.uniform(0,2)
+            if isPos:
+                angle = math.pi/-4
+            else:
+                angle = math.pi/4
+
+            
+            command = Command(tank.index, speed, 2 * angle, True)
+            self.commands.append(command)
 
         results = self.bzrc.do_commands(self.commands)
+
+
 
     def attack_enemies(self, tank):
         """Find the closest enemy and chase it, shooting as you go."""
@@ -73,7 +107,7 @@ class Agent(object):
         target_angle = math.atan2(target_y - tank.y,
                                   target_x - tank.x)
         relative_angle = self.normalize_angle(target_angle - tank.angle)
-        command = Command(tank.index, 1, 2 * relative_angle, True)
+        command = Command(tank.index, self.tank_movement[tank.index]['speed'], 2 * relative_angle, True)
         self.commands.append(command)
 
     def normalize_angle(self, angle):

@@ -37,10 +37,28 @@ class Agent(object):
         self.tank_movement = {}
         my_tanks = self.bzrc.get_mytanks()
         for tank in my_tanks:
-            speed = random.uniform(0.5, 5)
-            angle = random.uniform(math.pi/2 * -1, math.pi/2)
-            self.tank_movement[tank.index] = {'speed': speed, 'angle': angle}
+            speed = random.uniform(0.1, 5)
+            x,y = self.get_random_point()
+            self.tank_movement[tank.index] = {'speed': speed, 'x': x, 'y': y, 'last_run': time.time()}
 
+
+    def get_random_point(self):
+        p1 = random.uniform(-400, 400)
+        p2 = 405
+        isX = bool(random.getrandbits(1))
+        isPos = bool(random.getrandbits(1))
+
+        if isPos:
+            p2 *= -1
+
+        if isX:
+            x = p1
+            y = p2
+        else:
+            x = p2
+            y = p1
+
+        return x, y
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
@@ -48,47 +66,62 @@ class Agent(object):
         self.mytanks = mytanks
 
         self.commands = []
-        print self.tank_movement
+        #print self.tank_movement
 
         for tank in mytanks:
             #check if we need to bounce off the wall
-            speed = self.tank_movement[tank.index].speed
-            angle = self.tank_movement[tank.index]..angle
+            now = time.time()
 
-            if self.needs_to_bounce(tank):
-                speed, angle = self.bouce(tank)
-                
-            command = Command(tank.index, speed, angle, False)
-            self.commands.append(command)
             
+
+            if self.tank_movement[tank.index]['last_run'] +5 < now and self.needs_to_bounce(tank):
+                print 'we should bounce'
+                self.bounce(tank)
+            
+            x = self.tank_movement[tank.index]['x']
+            y = self.tank_movement[tank.index]['y']
+            self.move_to_position(tank, x, y)
+
         results = self.bzrc.do_commands(self.commands)
 
 
     def needs_to_bounce(self, tank):
-        if tank.x < -399 or tank.x > 399:
+        if tank.x <= -395 or tank.x >= 395:
             return True
-        if tank.y < -399 or tank.y > 399:
+        if tank.y <= -395 or tank.y >= 395:
             return True
 
     ''' This will return the speed/angle needed and bounce if needed '''
     def bounce(self, tank):
-        old_speed = self.tank_movement[tank.index].speed
-        old_angle = self.tank_movement[tank.index].angle
+        '''
+        old_speed = self.tank_movement[tank.index]['speed']
+        #old_angle = self.tank_movement[tank.index]['angle']
 
         #the speed will stay the same
         new_speed = old_speed
-        new_angle = old_angle
+        new_angle = math.pi/4
 
         #calculate the new angle, if we need one
-        if tank.x < -399 or tank.x > 399:
-            new_angle = math.pi - old_angle
-        if tank.y < -399 or tank.y > 399:
+        if tank.x <= -395 or tank.x >= 395:
+            print 'Top or Bottom bounce'
             new_angle = old_angle * -1
+        if tank.y <= -395 or tank.y >= 395:
+            print 'Left or Right bounce'
+            if old_angle < 0:
+                new_angle = math.pi/2 - old_angle
+            else:
+        
 
-        self.tank_movement[tank.index].speed = new_speed
-        self.tank_movement[tank.index].angle = new_angle
+        self.tank_movement[tank.index]['speed'] = new_speed
+        #self.tank_movement[tank.index]['angle'] = new_angle
+        self.tank_movement[tank.index]['last_run'] = time.time()
 
         return new_speed, new_angle
+        '''
+        x,y = self.get_random_point()
+        self.tank_movement[tank.index]['x'] = x
+        self.tank_movement[tank.index]['y'] = y
+
 
 
     def attack_enemies(self, tank):
@@ -113,7 +146,7 @@ class Agent(object):
         target_angle = math.atan2(target_y - tank.y,
                                   target_x - tank.x)
         relative_angle = self.normalize_angle(target_angle - tank.angle)
-        command = Command(tank.index, 1, 2 * relative_angle, True)
+        command = Command(tank.index, self.tank_movement[tank.index]['speed'], 2 * relative_angle, True)
         self.commands.append(command)
 
     def normalize_angle(self, angle):

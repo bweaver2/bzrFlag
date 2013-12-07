@@ -247,12 +247,12 @@ class basicAgent(object):
                     tankWayPoints.insert(tankWayPointIndex, newPoint)
                 """
                 stuck = self.is_tank_stuck(tank)
-                print 'current goal', tankWayPoints[tankWayPointIndex], [tank.x, tank.y]
+                #print 'current goal', tankWayPoints[tankWayPointIndex], [tank.x, tank.y]
                 if stuck:
                     stuck = False
-                    print 'stuck!'
+                    #print 'stuck!'
                     newWayPoints = self.get_closest_reachable_gray(tank, tankWayPoints[tankWayPointIndex]);
-                    print newWayPoints
+                    #print newWayPoints
                     if newWayPoints:
                         self.WAYPOINTS_ARRAY[tank.index] = newWayPoints + self.WAYPOINTS_ARRAY[tank.index]
 
