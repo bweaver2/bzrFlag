@@ -100,19 +100,21 @@ class basicAgent(object):
                     [0,0,0,100,0,0]
                     [0,0,0,0,0.1,0]
                     [0,0,0,0,0,0.1]])
-    observationH = array([[0,0,0,0,0,0]
+    H = array([[0,0,0,0,0,0]
                           [0,0,0,0,0,0]])
+    H_tr = H.transpose()
     sigmaZ = array([[25,0]
                     [0,25]])
     dt = 0.5 #change in time between computations
     c = .1 #friction coeficient
     #assuming computations every 0.5 seconds
-    physicsF = array([[1,dt,(dt^2)/2,0,0,0]
+    F = array([[1,dt,(dt^2)/2,0,0,0]
                       [0,1, dt,  0,0, 0]
                       [0,-c,1,   0,0, 0]
                       [0,0, 0,   1,dt,(dt^2)/2]
                       [0,0, 0,   0,1, dt]
                       [0,0, 0,   0,-c,1]])
+	F_tr = F.transpose()
 
     sigmaX = array([[0.1,0,0,0,0,0],
                     [0,0.1,0,0,0,0]
@@ -126,7 +128,22 @@ class basicAgent(object):
     last_posy = []
     last_ang = []
     time_to_print = 0
-
+	
+	def __updateKalman(self):
+		k_in = F.dot(sigmaT).dot(F_tr)+sigmaX
+		k_in2 = H.dot(k_in).dot(H_tr)+sigmaZ
+		k_in3 = inv(k_in2)
+		k_next = k_in.dot(H_tr).dot(k_in3)
+		mu_next = F.dot(mu)+k_next.dot(z_next-H.dot(F).dot(mu)
+		sigmaT_next = ((identity(6)-k_next.dot(H)).dot(k_in)
+		
+		pos = mu_next.dot(H)
+		print pos
+		
+		sigmaT = sigmaT_next
+		mu = mu_next
+		k = k_next
+	
     def __init__(self, bzrc):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
