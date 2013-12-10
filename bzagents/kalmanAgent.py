@@ -84,6 +84,8 @@ class kalmanAgent(object):
     WAYPOINTS_ARRAY = []
     CUR_WAYPOINT = [0,0,0,0]
     last_pos = []
+    NEXT_KALMAN_UPDATE = time.time()
+    LAST_ANGULAR_COMMAND = 0
 
     #Static variables for updating belief grid
     TRUE_HIT = 0.97
@@ -203,7 +205,7 @@ class kalmanAgent(object):
     def updateBelief(self, pos, noise):
 
         x = int(pos[0][0]) + 400
-        y = (int(pos[1][0]) + 400)
+        y = int(pos[1][0]) + 400
 
         #print the center of the belief
         if x >= 0 and x < 800 and y >= 0 and y < 800:
@@ -222,6 +224,14 @@ class kalmanAgent(object):
                 #print c_x,c_y
                 #the ring is going to be black
                 self.beliefMap[c_x][c_y] = 0
+
+    def printAimingAt(self, target_x, target_y):
+        x = int(target_x) + 400
+        y = int(target_y) + 400
+
+        #print the center of the belief
+        if x >= 0 and x < 800 and y >= 0 and y < 800:
+            self.beliefMap[x][y] = 1
 
     
     def get_observations(self):
@@ -242,15 +252,23 @@ class kalmanAgent(object):
         """Some time has passed; decide what to do next."""
         mytanks = self.bzrc.get_mytanks()
         enemy = self.get_enemies()[0]
+        shots = self.bzrc.get_shots()
+
         if enemy:
             tank = mytanks[0]
             z_next = self.get_observations()
-            self.clear_belief_map();
-            pos, noise = self.__updateKalman(z_next);
-            self.updateBelief(pos, noise)
+            now = time.time()
+            if(now > self.NEXT_KALMAN_UPDATE):
+                self.NEXT_KALMAN_UPDATE = now + 0.5
+                self.clear_belief_map();
 
-            #we now have some belief about the world, we should aim and soot
-            self.command_turret(tank)
+                pos, noise = self.__updateKalman(z_next);
+                self.updateBelief(pos, noise)
+
+                #we now have some belief about the world, we should aim and soot
+                self.command_turret(tank, True)
+            else:
+                self.command_turret(tank, True)
         else:
             command = Command(tank.index, 0, 0, False)
             self.commands.append(command)
@@ -258,10 +276,11 @@ class kalmanAgent(object):
 
     #what we need to do is coordinate enemy movement with our turret
     #So we lead our target and fire when the bullet and enemy tank will cross paths
-    def command_turret(self, tank):
+    def command_turret(self, tank, change_turn):
         #time for bullet to travel to enemy
         time = self.get_time_to_enemy(tank)
         target_x, target_y = self.get_enemy_position(time)
+        self.printAimingAt(target_x, target_y)
         """Set command to move to given coordinates."""
         target_angle = math.atan2(target_y - tank.y,
                                   target_x - tank.x)
@@ -270,7 +289,10 @@ class kalmanAgent(object):
         #if are hit within 2.5 degrees then shoot
         if abs(relative_angle) < math.pi/144:
             should_shoot = True
-        command = Command(tank.index, 0, 2 * relative_angle, should_shoot)
+        if change_turn:
+            self.LAST_ANGULAR_COMMAND = 4 * relative_angle
+
+        command = Command(tank.index, 0, self.LAST_ANGULAR_COMMAND, should_shoot)
         self.commands.append(command)
 
     def get_time_to_enemy(self, tank):
@@ -280,8 +302,8 @@ class kalmanAgent(object):
         e_y_p = self.mu[3][0]
         e_y_v = self.mu[4][0]
         e_y_a = self.mu[5][0]
-        e_v = math.sqrt(e_x_v * e_x_v + e_y_v * e_y_v)
-        e_a = math.sqrt(e_x_a * e_x_a + e_y_a * e_y_a)
+        e_v = math.sqrt(e_x_v ** 2 + e_y_v ** 2)
+        e_a = math.sqrt(e_x_a ** 2 + e_y_a ** 2)
 
         b_x_p = tank.x
         b_y_p = tank.y
@@ -289,30 +311,31 @@ class kalmanAgent(object):
         b_y_v = 100
         b_y_a = 0
 
-        dist = math.sqrt((e_x_p - b_x_p)**2 + (e_y_p - b_y_p)**2)
+        dist = math.sqrt((b_x_p - e_x_p)**2 + (b_y_p - e_y_p)**2)
 
         #image a circle radiating outwards with time. 
         #This represents the shot fired (traveling at a rate of 100)
-        #bullet_position = enemy_position + enemy_velocity * t + enemy_accl^2/2
-        #enemy_position = enemy_position + enemy_velocity * t + enemy_accl^2/2
-        #tank_position + 100 * t - enemy_position - enemy_velocity * t - (enemy_accl * t^2)/2 = 0
-        #t(e_v - 100) + 1/2 e_a * t^2 = dist
+        #bullet_position = tank_position + bullet_velocity*t
+        #enemy_position = enemy_position + enemy_velocity * t + enemy_accl*t^2/2
+        #tank_position + bullet_velocity * t - enemy_position - enemy_velocity * t - (enemy_accl * t^2)/2 = 0
+        #e_p + e_v * t + (1/2) e_a * t^2 = b_p + b_v * t
+        #t(100 - e_v) + 1/2 e_a * t^2 = b_p - e_p (which is dist)
         a = 1/2 * e_a
-        b = e_v - 100
+        b = 100 - e_v
         c = dist * -1
         if a != 0:
             root_check = b**2 - 4*a*c
             if root_check > 0:
                 root1 = (-b - math.sqrt(root_check)) / (2*a)
                 root2 = (-b + math.sqrt(root_check)) / (2*a)
-                if root1 < root2 and root1 > 0:
+                if root1 > root2:
                     return root1
                 else:
                     return root2
             else:
                 return None
         else:
-            return dist/(e_v - 100)
+            return dist/(100 - e_v)
 
     def get_enemy_position(self, time):
         e_x_p = self.mu[0][0]
