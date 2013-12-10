@@ -27,7 +27,7 @@ import random
 
 from bzrc import BZRC, Command
 
-class Agent(object):
+class clayPidgeon(object):
     """Class handles all command and control logic for a teams tanks."""
 
     def __init__(self, bzrc):
@@ -173,7 +173,7 @@ def main():
     #bzrc = BZRC(host, int(port), debug=True)
     bzrc = BZRC(host, int(port))
 
-    agent = Agent(bzrc)
+    agent = clayPidgeon(bzrc)
 
     prev_time = time.time()
 

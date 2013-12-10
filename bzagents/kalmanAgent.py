@@ -22,6 +22,7 @@
 
 import sys
 import math
+import cmath
 import time
 from numpy import *
 from numpy.linalg import *
@@ -148,21 +149,45 @@ class kalmanAgent(object):
         mu_in = z_next-H.dot(F).dot(mu) 
         mu_next = F.dot(mu) + k_next.dot(mu_in)
         sigmaT_next = ((identity(6)-k_next.dot(H)).dot(k_in))
-        print sigmaT_next
 
         self.sigmaT = sigmaT_next
         self.mu = mu_next
         return H.dot(self.mu), self.sigmaT
 
+    def get_projected_position(self, seconds):
+        #make globals local for ease of use
+        F = self.F
+        F_tr = self.F_tr
+        H = self.H
+        H_tr = self.H_tr
+        sigmaT = self.sigmaT
+        mu = self.mu
+        sigmaX = self.sigmaX
+        sigmaZ = self.sigmaZ
+        
+        loops = int(seconds / self.dt)
+        for i in xrange(loops):
+            k_in = F.dot(sigmaT).dot(F_tr)+sigmaX
+            k_in2 = H.dot(k_in).dot(H_tr)+sigmaZ
+            k_in3 = inv(k_in2)
+            k_next = k_in.dot(H_tr).dot(k_in3)
+
+            mu_in = H.dot(F).dot(mu) 
+            mu_next = F.dot(mu) + k_next.dot(mu_in)
+            sigmaT_next = ((identity(6)-k_next.dot(H)).dot(k_in))
+
+            #set up for next loop
+            mu = mu_next
+            k = k_next
+            sigmaT = sigmaT_next
+
+        #return where we think they will be, and our certainty of it
+        return H.dot(mu), sigmaT
+
+
     def __init__(self, bzrc):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
-        if self.constants['truepositive']:
-            TRUE_HIT = self.constants['truepositive']
-            print 'new true hit:', TRUE_HIT
-        if self.constants['truenegative']:
-            TRUE_MISS = self.constants['truenegative']
-            print 'new true mess:', TRUE_MISS
         self.commands = []
         self.PLOT_FILE = bzrc.get_plot_file()
         self.base = None
@@ -173,27 +198,7 @@ class kalmanAgent(object):
                 self.base = base
         mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
         obstacles = self.bzrc.get_obstacles()
-        self.last_posx = []
-        self.last_posy = []
-        self.last_pos = []
-        self.WAYPOINTS_ARRAY = [
-            [[-350,350],   [-175,350], [0,350], [175,350],  [350,350], 
-                [350,250], [175,250],  [0,250], [-175,250], [-350,250]],  #Tank 1
-            [[-350,150],   [-175,150], [0,150], [175,150],  [350,150], 
-                [350,50],  [175,50],   [0,50],  [-175,50],  [-350,50]],   #Tank 2
-            [[-350,-50],   [-175,-50], [0,-50], [175,-50],  [350,-50], 
-                [350,-150],[175,-150], [0,-150],[-175,-150],[-350,-150]], #Tank 3
-            [[-350,-250],  [-175,-250],[0,-250],[175,-250], [350,-250],
-                [350,-350],[175,-350], [0,-350],[-175,-350],[-350,-350]]  #Tank 4
-            ]
-        self.last_ang = []
-        for tank in mytanks:
-            self.last_posx.append(tank.x-0)
-            self.last_posy.append(tank.y-0)
-            self.last_ang.append(tank.angle-0)
-            self.last_pos.append([tank.x,tank.y])
 
-    
 
     def updateBelief(self, pos, noise):
 
@@ -201,7 +206,8 @@ class kalmanAgent(object):
         y = (int(pos[1][0]) + 400)
 
         #print the center of the belief
-        self.beliefMap[x][y] = 1
+        if x >= 0 and x < 800 and y >= 0 and y < 800:
+            self.beliefMap[x][y] = 1
 
         #print the certainty ring around it at one standard deviation
         x_noise = noise[0][0]
@@ -212,36 +218,113 @@ class kalmanAgent(object):
             c_x = int(x+math.cos(i*math.pi/180)*x_noise)
             c_y = int(y+math.sin(i*math.pi/180)*y_noise)
 
-            if c_x < 0 or c_x >= 800 or c_y < 0 or c_y >= 800:
-                pass
-            else:
+            if c_x >= 0 and c_x < 800 and c_y >= 0 and c_y < 800:
                 #print c_x,c_y
                 #the ring is going to be black
                 self.beliefMap[c_x][c_y] = 0
 
     
     def get_observations(self):
+        enemy = self.get_enemies()[0]
+        return array([[enemy.x],[enemy.y]])
+
+    def get_enemies(self):
         enemies = self.bzrc.get_othertanks()
         for tank in enemies:
-            print tank.color
             if tank.color == 'blue':
                 #we only get tank positions
-                return array([[tank.x],[tank.y]])
+                return [tank]
 
     def clear_belief_map(self):
         self.beliefMap = [[self.baseBelief for x in xrange(800)] for x in xrange(800)]
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
-        z_next = self.get_observations()
-        self.clear_belief_map();
-        
+        mytanks = self.bzrc.get_mytanks()
+        enemy = self.get_enemies()[0]
+        if enemy:
+            tank = mytanks[0]
+            z_next = self.get_observations()
+            self.clear_belief_map();
+            pos, noise = self.__updateKalman(z_next);
+            self.updateBelief(pos, noise)
 
-        pos, noise = self.__updateKalman(z_next);
-        self.updateBelief(pos, noise)
+            #we now have some belief about the world, we should aim and soot
+            self.command_turret(tank)
+        else:
+            command = Command(tank.index, 0, 0, False)
+            self.commands.append(command)
+        results = self.bzrc.do_commands(self.commands)
 
+    #what we need to do is coordinate enemy movement with our turret
+    #So we lead our target and fire when the bullet and enemy tank will cross paths
+    def command_turret(self, tank):
+        #time for bullet to travel to enemy
+        time = self.get_time_to_enemy(tank)
+        target_x, target_y = self.get_enemy_position(time)
+        """Set command to move to given coordinates."""
+        target_angle = math.atan2(target_y - tank.y,
+                                  target_x - tank.x)
+        relative_angle = self.normalize_angle(target_angle - tank.angle)
+        should_shoot = False
+        #if are hit within 2.5 degrees then shoot
+        if abs(relative_angle) < math.pi/144:
+            should_shoot = True
+        command = Command(tank.index, 0, 2 * relative_angle, should_shoot)
+        self.commands.append(command)
 
+    def get_time_to_enemy(self, tank):
+        e_x_p = self.mu[0][0]
+        e_x_v = self.mu[1][0]
+        e_x_a = self.mu[2][0]
+        e_y_p = self.mu[3][0]
+        e_y_v = self.mu[4][0]
+        e_y_a = self.mu[5][0]
+        e_v = math.sqrt(e_x_v * e_x_v + e_y_v * e_y_v)
+        e_a = math.sqrt(e_x_a * e_x_a + e_y_a * e_y_a)
 
+        b_x_p = tank.x
+        b_y_p = tank.y
+        #from constants.py: SHOTSPEED = 100
+        b_y_v = 100
+        b_y_a = 0
+
+        dist = math.sqrt((e_x_p - b_x_p)**2 + (e_y_p - b_y_p)**2)
+
+        #image a circle radiating outwards with time. 
+        #This represents the shot fired (traveling at a rate of 100)
+        #bullet_position = enemy_position + enemy_velocity * t + enemy_accl^2/2
+        #enemy_position = enemy_position + enemy_velocity * t + enemy_accl^2/2
+        #tank_position + 100 * t - enemy_position - enemy_velocity * t - (enemy_accl * t^2)/2 = 0
+        #t(e_v - 100) + 1/2 e_a * t^2 = dist
+        a = 1/2 * e_a
+        b = e_v - 100
+        c = dist * -1
+        if a != 0:
+            root_check = b**2 - 4*a*c
+            if root_check > 0:
+                root1 = (-b - math.sqrt(root_check)) / (2*a)
+                root2 = (-b + math.sqrt(root_check)) / (2*a)
+                if root1 < root2 and root1 > 0:
+                    return root1
+                else:
+                    return root2
+            else:
+                return None
+        else:
+            return dist/(e_v - 100)
+
+    def get_enemy_position(self, time):
+        e_x_p = self.mu[0][0]
+        e_x_v = self.mu[1][0]
+        e_x_a = self.mu[2][0]
+        e_y_p = self.mu[3][0]
+        e_y_v = self.mu[4][0]
+        e_y_a = self.mu[5][0]
+
+        new_x = e_x_p + time*e_x_v + (1/2)*e_x_a*time**2
+        new_y = e_y_p + time*e_y_v + (1/2)*e_y_a*time**2
+        return new_x, new_y
 
     def normalize_angle(self, angle):
         """Make any angle be between +/- pi."""
