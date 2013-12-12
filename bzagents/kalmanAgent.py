@@ -76,6 +76,7 @@ class kalmanAgent(object):
     LAST_ANGULAR_COMMAND = 0
     LAST_SHOT_TIME = time.time() - 5
     COMMANDS_PER_SECOND = .125
+    num_shots = 0
 
     #Static variables for updating belief grid
     TRUE_HIT = 0.97
@@ -204,7 +205,7 @@ class kalmanAgent(object):
         #print the certainty ring around it at one standard deviation
         x_noise = noise[0][0]
         y_noise = noise[3][3]
-        print 'Noise', y_noise
+        #print 'Noise', y_noise
         #float[] a = new float[3*361]; // 3-coordinates and 361 angles
         for i in xrange(360):
             c_x = int(x+math.cos(i*math.pi/180)*x_noise)
@@ -266,6 +267,9 @@ class kalmanAgent(object):
                     self.command_turret(tank, True)
             else:
                 #print 'dead'
+                if self.num_shots > 0:
+                    print self.num_shots
+                    self.num_shots = 0
                 command = Command(mytanks[0].index, 0, 0, False)
                 self.commands.append(command)
             results = self.bzrc.do_commands(self.commands)
@@ -286,13 +290,16 @@ class kalmanAgent(object):
             self.LAST_ANGULAR_COMMAND = 3 * relative_angle
 
         #are we at the right angle? - within 2 degrees
-        should_shoot = abs(tank.angle-target_angle) < math.pi/180
+        should_shoot = abs(tank.angle-target_angle) < math.pi/(dist*2)
         #has enough time passed since the last shot?
         should_shoot = should_shoot and time.time() > self.LAST_SHOT_TIME + 2
         #bullets die at a distance of 350 so don't bother if they are too far away 
         should_shoot = should_shoot and dist < 350
+        if dist >= 350:
+            self.num_shots = 0
         if should_shoot:
-            print 'distance:', dist
+            #print 'distance:', dist
+            self.num_shots = self.num_shots + 1
             self.LAST_SHOT_TIME = time.time()
         
         command = Command(tank.index, 0, self.LAST_ANGULAR_COMMAND, should_shoot)
