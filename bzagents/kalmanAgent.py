@@ -71,21 +71,11 @@ def init_window(width, height):
 
 class kalmanAgent(object):
     """Class handles all command and control logic for a teams tanks."""
-    ENEMY_TANK_MIN_DISTANCE = 1
-    ENEMY_TANK_MAX_DISTANCE = 5
-    OBSTACLE_MAX_DISTANCE = 10
-    OBSTACLE_MIN_DISTANCE = 1
-    BULLET_MAX_DISTANCE = 10
-    BULLET_MIN_DISTANCE = 1
-    FLAG_MIN_DISTANCE = 1
-    FLAG_MAX_DISTANCE = 5
-    FLAG_MAX_SPEED = 5
-    PLOT_FILE = None
-    WAYPOINTS_ARRAY = []
-    CUR_WAYPOINT = [0,0,0,0]
-    last_pos = []
     NEXT_KALMAN_UPDATE = time.time()
+    LAST_COMMAND_SENT = time.time() - 5
     LAST_ANGULAR_COMMAND = 0
+    LAST_SHOT_TIME = time.time() - 5
+    COMMANDS_PER_SECOND = .125
 
     #Static variables for updating belief grid
     TRUE_HIT = 0.97
@@ -98,19 +88,22 @@ class kalmanAgent(object):
     #map[800][800] = top right corner
     baseBelief = 0.5
     beliefMap = [[baseBelief for x in xrange(800)] for x in xrange(800)]
-    mu = array([[0],[0],[0],[0],[0],[0]])
-    sigmaT = array([[100,0,0,0,0,0],
-                    [0,0.1,0,0,0,0],
+    #we think the tank starts out at rest at x = 0 and y = 200
+    mu = array([[0],[0],[0],[200],[0],[0]])
+
+    sigmaT = array([[30,0,0,0,0,0],
+                    [0,2,0,0,0,0],
                     [0,0,0.1,0,0,0],
-                    [0,0,0,100,0,0],
-                    [0,0,0,0,0.1,0],
+                    [0,0,0,30,0,0],
+                    [0,0,0,0,2,0],
                     [0,0,0,0,0,0.1]])
     H = array([[1,0,0,0,0,0],
                [0,0,0,1,0,0]])
     H_tr = H.transpose()
+    #based on the --default-posnoise=5 in rungame.sh should be that value squared
     sigmaZ = array([[25,0],
                     [0,25]])
-    dt = 0.5 #change in time between computations
+    dt = 0.25 #change in time between computations
     c = .1 #friction coeficient
     #assuming computations every 0.5 seconds
     F = array([[1,dt,(dt*dt)/2,0,0,0],
@@ -121,18 +114,14 @@ class kalmanAgent(object):
               [0,0, 0,   0,-c,1]])
     F_tr = F.transpose()
 
+    #add to whichever spots you think will be the most noisey, acceleration will be intense when it's there
+    #we have a position noise of 5 as our default in the rungame.sh file
     sigmaX = array([[0.1,0,0,0,0,0],
                     [0,0.1,0,0,0,0],
-                    [0,0,100,0,0,0],
+                    [0,0,10,0,0,0],
                     [0,0,0,0.1,0,0],
                     [0,0,0,0,0.1,0],
-                    [0,0,0,0,0,80]])
-
-
-    last_posx = []
-    last_posy = []
-    last_ang = []
-    time_to_print = 0
+                    [0,0,0,0,0,10]])
     
     def __updateKalman(self, z_next):
         F = self.F
@@ -215,7 +204,7 @@ class kalmanAgent(object):
         #print the certainty ring around it at one standard deviation
         x_noise = noise[0][0]
         y_noise = noise[3][3]
-        #print x,y,x_noise,y_noise
+        print 'Noise', y_noise
         #float[] a = new float[3*361]; // 3-coordinates and 361 angles
         for i in xrange(360):
             c_x = int(x+math.cos(i*math.pi/180)*x_noise)
@@ -254,48 +243,58 @@ class kalmanAgent(object):
         mytanks = self.bzrc.get_mytanks()
         enemy = self.get_enemies()[0]
         shots = self.bzrc.get_shots()
+        self.commands = []
 
-        if enemy.status == 'alive':
-            tank = mytanks[0]
-            z_next = self.get_observations()
-            now = time.time()
-            if(now > self.NEXT_KALMAN_UPDATE):
-                self.NEXT_KALMAN_UPDATE = now + 0.5
-                self.last_aim = now;
-                self.clear_belief_map();
+        #we were running into issues with to much a command backlog, so we're slowing down the rate of commands
+        if time.time() > self.LAST_COMMAND_SENT + self.COMMANDS_PER_SECOND:
+            self.LAST_COMMAND_SENT = time.time()
+            if enemy.status == 'alive':
+                tank = mytanks[0]
+                z_next = self.get_observations()
+                now = time.time()
+                if(now > self.NEXT_KALMAN_UPDATE):
+                    self.NEXT_KALMAN_UPDATE = now + self.dt
+                    self.last_aim = now;
+                    #self.clear_belief_map();
 
-                pos, noise = self.__updateKalman(z_next);
-                self.updateBelief(pos, noise)
+                    pos, noise = self.__updateKalman(z_next);
+                    self.updateBelief(pos, noise)
 
-                #we now have some belief about the world, we should aim and soot
-                self.command_turret(tank, True)
+                    #we now have some belief about the world, we should aim and soot
+                    self.command_turret(tank, True)
+                else:
+                    self.command_turret(tank, True)
             else:
-                self.command_turret(tank, True)
-        else:
-            #print 'dead'
-            command = Command(mytanks[0].index, 0, 0, False)
-            self.commands.append(command)
-        results = self.bzrc.do_commands(self.commands)
+                #print 'dead'
+                command = Command(mytanks[0].index, 0, 0, False)
+                self.commands.append(command)
+            results = self.bzrc.do_commands(self.commands)
 
     #what we need to do is coordinate enemy movement with our turret
     #So we lead our target and fire when the bullet and enemy tank will cross paths
     def command_turret(self, tank, change_turn):
         #time for bullet to travel to enemy
-        time = self.get_time_to_enemy(tank)
-        target_x, target_y = self.get_enemy_position(time)
+        bullet_time = self.get_time_to_enemy(tank)
+        target_x, target_y = self.get_enemy_position(bullet_time)
+        dist = math.sqrt((tank.x - target_x)**2 + (tank.y - target_y)**2)
         self.printAimingAt(target_x, target_y)
         """Set command to move to given coordinates."""
         target_angle = math.atan2(target_y - tank.y,
                                   target_x - tank.x)
         relative_angle = self.normalize_angle(target_angle - tank.angle)
-        should_shoot = False
-        #if are hit within 2.5 degrees then shoot
-        if abs(tank.angle-target_angle) < math.pi/144:
-            #print tank.angle-target_angle
-            should_shoot = True
         if change_turn:
-            self.LAST_ANGULAR_COMMAND = 4 * relative_angle
+            self.LAST_ANGULAR_COMMAND = 3 * relative_angle
 
+        #are we at the right angle? - within 2 degrees
+        should_shoot = abs(tank.angle-target_angle) < math.pi/180
+        #has enough time passed since the last shot?
+        should_shoot = should_shoot and time.time() > self.LAST_SHOT_TIME + 2
+        #bullets die at a distance of 350 so don't bother if they are too far away 
+        should_shoot = should_shoot and dist < 350
+        if should_shoot:
+            print 'distance:', dist
+            self.LAST_SHOT_TIME = time.time()
+        
         command = Command(tank.index, 0, self.LAST_ANGULAR_COMMAND, should_shoot)
         self.commands.append(command)
 
