@@ -74,8 +74,10 @@ class clayPidgeon(object):
 
             
 
-            if self.tank_movement[tank.index]['last_run'] +5 < now and self.needs_to_bounce(tank):
-                print 'we should bounce'
+            
+            #if self.tank_movement[tank.index]['last_run'] +5 < now and self.needs_to_bounce(tank):
+            if self.needs_to_bounce(tank):
+                #print 'we should bounce'
                 self.bounce(tank)
             
             x = self.tank_movement[tank.index]['x']
@@ -86,9 +88,9 @@ class clayPidgeon(object):
 
 
     def needs_to_bounce(self, tank):
-        if tank.x <= -395 or tank.x >= 395:
+        if (tank.x <= -395 and self.tank_movement[tank.index]['x'] == -405) or (tank.x >= 395 and self.tank_movement[tank.index]['x'] == 405):
             return True
-        if tank.y <= -395 or tank.y >= 395:
+        if (tank.y <= -395 and self.tank_movement[tank.index]['y'] == -405) or (tank.y >= 395 and self.tank_movement[tank.index]['y'] == 405):
             return True
 
     ''' This will return the speed/angle needed and bounce if needed '''

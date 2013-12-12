@@ -90,6 +90,7 @@ class kalmanAgent(object):
     #Static variables for updating belief grid
     TRUE_HIT = 0.97
     TRUE_MISS = 0.9
+    last_aim = 0;
 
     #Static Variables to store current perception of the map
     #map[0][0] = bottom left corner
@@ -125,7 +126,7 @@ class kalmanAgent(object):
                     [0,0,100,0,0,0],
                     [0,0,0,0.1,0,0],
                     [0,0,0,0,0.1,0],
-                    [0,0,0,0,0,100]])
+                    [0,0,0,0,0,80]])
 
 
     last_posx = []
@@ -254,12 +255,13 @@ class kalmanAgent(object):
         enemy = self.get_enemies()[0]
         shots = self.bzrc.get_shots()
 
-        if enemy:
+        if enemy.status == 'alive':
             tank = mytanks[0]
             z_next = self.get_observations()
             now = time.time()
             if(now > self.NEXT_KALMAN_UPDATE):
                 self.NEXT_KALMAN_UPDATE = now + 0.5
+                self.last_aim = now;
                 self.clear_belief_map();
 
                 pos, noise = self.__updateKalman(z_next);
@@ -270,7 +272,8 @@ class kalmanAgent(object):
             else:
                 self.command_turret(tank, True)
         else:
-            command = Command(tank.index, 0, 0, False)
+            #print 'dead'
+            command = Command(mytanks[0].index, 0, 0, False)
             self.commands.append(command)
         results = self.bzrc.do_commands(self.commands)
 
@@ -287,7 +290,8 @@ class kalmanAgent(object):
         relative_angle = self.normalize_angle(target_angle - tank.angle)
         should_shoot = False
         #if are hit within 2.5 degrees then shoot
-        if abs(relative_angle) < math.pi/144:
+        if abs(tank.angle-target_angle) < math.pi/144:
+            #print tank.angle-target_angle
             should_shoot = True
         if change_turn:
             self.LAST_ANGULAR_COMMAND = 4 * relative_angle
@@ -304,13 +308,18 @@ class kalmanAgent(object):
         e_y_a = self.mu[5][0]
         e_v = math.sqrt(e_x_v ** 2 + e_y_v ** 2)
         e_a = math.sqrt(e_x_a ** 2 + e_y_a ** 2)
-
+        
+        dt = time.time() - self.last_aim
+        #e_x_p = e_x_p+dt*e_x_v+.5*e_x_a*dt**2
+        #e_y_p = e_y_p+dt*e_y_v+.5*e_y_a*dt**2
+        
         b_x_p = tank.x
         b_y_p = tank.y
         #from constants.py: SHOTSPEED = 100
         b_y_v = 100
         b_y_a = 0
-
+        
+        
         dist = math.sqrt((b_x_p - e_x_p)**2 + (b_y_p - e_y_p)**2)
 
         #image a circle radiating outwards with time. 
